@@ -39,6 +39,10 @@ struct ay_ym_low_lavel_cfg_t {
      * Очередь должна содержать ay_low_out_data элементы!!!
      */
     USER_OS_STATIC_QUEUE*           const p_queue_array;
+    const uint8_t                   ay_number;              // Колличество AY на сдвиговом регистре.
+    const uint8_t                   task_prio;              // Приоритет задачи-обработчика данных из очереди.
+
+    uint8_t*                        const  r7_reg;          // Текущее состояние управляющего регистра r7 каждого чипа (массив по количеству чипов).
 };
 
 
@@ -48,14 +52,6 @@ struct ay_low_out_data {
 };
 //int                    *tim_frequency_ay_fd;                // FD таймера, который генерирует необходимую частоту для генерации сигнала (~1.75 МГц по-умолчанию).
 //    int                    *tim_event_ay_fd;                    // FD таймера, вызывающего прерывания (лля вывода данных из очереди в AY/YM).
-
-/*
-void ay_clear_to_queue (int fd);                            // Очищаем AY через очередь.
-void ay_delay_clean (int fd);                                // Выходим после того, как очередь AY освободится.
-void ay_play_stait (int fd, uint8_t stait);                    // Включаем/выключаем AY. Причем сохраняя состояние регистров. Чтобы после запуска ничего не глючило.
-void ay_queue_add_element (int fd, void* data, uint8_t number_ay);            // Добавляет в очередь элемент.
-void ay_music_off (int fd);            // Отключаем воспроизведение (очищаем очередь, чистим AY, выключаем таймеры).
-*/
 
 /*
  * Очередь элементов для выдачи в AY.
@@ -68,16 +64,13 @@ struct ay_queue_struct {
 
 // Очередь должна быть как минимум 1 элемент (в идеале - по 16*2 b и более для каждого чипа).
 // Очердь общая для все чипов!
-template < uint8_t AY_NUMBER, uint8_t TASK_PRIO, const ay_ym_low_lavel_cfg_t* const STRUCT_INIT >
 class ay_ym_low_lavel {
 public:
-
-
-    static const ay_ym_low_lavel< AY_NUMBER, TASK_PRIO, STRUCT_INIT >* instance ( void );
+    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg(cfg)  {}
     void init ( void ) const;
 
 private:
-    constexpr ay_ym_low_lavel () : cfg(STRUCT_INIT) {}
+    const ay_ym_low_lavel_cfg_t* const cfg;
 
     void out_reg    ( void ) const;
     void out_data   ( void ) const;
@@ -85,12 +78,14 @@ private:
     // Данный handler с fd ранее созданного объекта должен быть вызван в прерывании по переполнению таймера, генерирующего прерывания раз в 50 мс (частота может быть изменена другими методами, но по-умолчанию 50 мс).
     void timer_interrupt_handler ( void ) const;
     void queue_add_element       ( ay_queue_struct* data ) const;
-       // Включить/выключить 1 канал одного из чипов. Через очередь.
-    void set_channel             ( uint8_t number_ay, uint8_t channel, bool set ) const;
-void hardware_clear ( void ) const;
 
-    const ay_ym_low_lavel_cfg_t* const cfg;
+    // Включить/выключить 1 канал одного из чипов. Через очередь.
+    void set_channel             ( uint8_t number_ay, uint8_t channel, bool set ) const;
+
+    void hardware_clear ( void ) const;
     static void task ( void* p_this );
+
+
     /*
      * Этим симафором будем показывать, что пора передать следущую порцию данных.
      * Мы ждем его в задаче ay_queue_out_task и отдаем в ay_timer_handler.
@@ -101,14 +96,12 @@ void hardware_clear ( void ) const;
     /*
      * Для создания задачи.
      */
-    mutable USER_OS_STATIC_STACK_TYPE           task_stack[300];
+    mutable USER_OS_STATIC_STACK_TYPE           task_stack[300] = { 0 };
     mutable USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct   = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
 
     /*
      * Далее все сделано так, чтобы можно было поддерживать до 32 AY/YM чипов.
      */
-    mutable uint8_t     r7_reg[AY_NUMBER] = { 0 };   // Текущее состояние управляющего регистра r7 каждого чипа.
+
     uint8_t tic_ff      = 0;                         // Считаем время воспроизведения (колличество прерываний).
 };
-
-#include "ay_ym_low_lavel_func.h"
