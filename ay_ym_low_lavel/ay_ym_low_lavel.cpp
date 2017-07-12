@@ -35,6 +35,8 @@ void ay_ym_low_lavel::out_data ( void ) const {
      this->cfg->bdir->reset();
 }
 
+
+
 /*
  * Вызывается в прерывании по переполнению таймера, настроенного на прерывание раз в 50 мс (по-умолчанию, значение может меняться).
  */
@@ -49,7 +51,6 @@ void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
  * Данные должны быть расположены в формате регистр(16-8 бит)|значение(7-0 бит).
  * Задача выполняется из под FreeRTOS.
  */
-
 void ay_ym_low_lavel::queue_add_element ( ay_queue_struct* item ) const {
     ay_low_out_data buf;
     buf.reg     = item->reg;
@@ -80,25 +81,47 @@ void ay_ym_low_lavel::hardware_clear ( void ) const {
      * В каждом AY необходимо в регистр R7 положить 0b111111 (чтобы остановить генерацию звука и шумов).
      * А во все остальные регистры 0.
      */
-    for (int loop_ay = 0; loop_ay <  this->cfg->ay_number; loop_ay++){
-        this->cfg->r7_reg[loop_ay] = 0b111111;    // Сохраняем во внутреннее хранилище новое сосотояние всех чипов.
-    };
-    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );        // Во всех чипах выбираем 7-й регистр (регистр управления).
+    // Сохраняем во внутреннее хранилище новое сосотояние всех чипов.
+    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+        this->cfg->r7_reg[loop_ay] = 0b111111;
+
+    // Во всех чипах выбираем 7-й регистр (регистр управления).
+    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+        this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, 7 );
     this->out_reg();
-    memset( this->cfg->p_sr_data, 0b111111,  this->cfg->ay_number ); // Во все 7-е регистры кладем команду отключения всех шумов и звуков на каналах.
+
+    // Во все 7-е регистры кладем команду отключения всех шумов и звуков на каналах.
+    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+        this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, 0b111111 );
     this->out_data();
+
+
     for (int l = 0; l<7; l++) {            // 0..6 регистры заполняются 0-ми.
-        memset( this->cfg->p_sr_data, l,  this->cfg->ay_number );
+        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, l );
         this->out_reg();
-        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number );
+
+        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number );   // В 0-ле нечего переставлять :), так что connection_transformation не используется.
         this->out_data();
     };
+
     for (int l = 8; l<0xF; l++){            // 8..15 регистры заполняются 0-ми.
-        memset( this->cfg->p_sr_data, l,  this->cfg->ay_number );
+        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, l );
         this->out_reg();
-        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number);
+
+        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number );   // В 0-ле нечего переставлять :), так что connection_transformation не используется.
         this->out_data();
     };
+}
+
+// Производим перестоновку бит в байте (с учетом реального подключения.
+uint8_t ay_ym_low_lavel::connection_transformation ( const uint8_t chip, const uint8_t& data ) const {
+    uint8_t buffer = 0;
+    for ( uint8_t loop = 0; loop < 8; loop++ ) {
+        buffer |= ( ( data & ( 1 << loop ) ) >> loop ) << this->cfg->con_cfg[ chip ].bias_bit[loop];
+    }
+    return buffer;
 }
 
 /*
@@ -128,7 +151,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                      */
                     for ( volatile uint8_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {    // Собираем регистр/данные со всех очередей всех чипов.
                         volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->p_queue_array[chip_loop]);
-                        if ( count != 0) {    // Если для этого чипа очередь не пуста.
+                        if ( count != 0 ) {    // Если для этого чипа очередь не пуста.
                                 xQueueReceive(obj->cfg->p_queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
                                 if ( buffer[chip_loop].reg == 0xFF ){    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
                                     flag |= 1<<chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
@@ -146,11 +169,11 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                      * Собранный пакет раскладываем на регистры и на их значения и отправляем.
                      */
                     for (int chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++){    // Раскладываем на регистры.
-                        obj->cfg->p_sr_data[chip_loop] = buffer[chip_loop].reg;
+                        obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].reg );
                     }
                     obj->out_reg();
                     for (int chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++){    // Раскладываем на значения.
-                        obj->cfg->p_sr_data[chip_loop] = buffer[chip_loop].data;
+                        obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
                     }
                     obj->out_data();
                 }
