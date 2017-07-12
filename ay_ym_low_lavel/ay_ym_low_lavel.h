@@ -67,6 +67,7 @@ struct ay_queue_struct {
 class ay_ym_low_lavel {
 public:
     constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg(cfg)  {}
+    void queue_add_element       ( ay_queue_struct* data ) const;
     void init ( void ) const;
 
 private:
@@ -77,7 +78,6 @@ private:
 
     // Данный handler с fd ранее созданного объекта должен быть вызван в прерывании по переполнению таймера, генерирующего прерывания раз в 50 мс (частота может быть изменена другими методами, но по-умолчанию 50 мс).
     void timer_interrupt_handler ( void ) const;
-    void queue_add_element       ( ay_queue_struct* data ) const;
 
     // Включить/выключить 1 канал одного из чипов. Через очередь.
     void set_channel             ( uint8_t number_ay, uint8_t channel, bool set ) const;

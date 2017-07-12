@@ -117,19 +117,8 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         buf.data    = 0b11111000;
         xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
 
-        buf.reg     = 0;
-        buf.data    = 12;
-        xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
-
-        buf.reg     = 1;
-        buf.data    = 2;
-        xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
-
-        buf.reg     = 8;
-        buf.data    = 10;
-        xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
+        vTaskDelay(1000);
         xSemaphoreGive(obj->semaphore);
-
         while( true ) {
             flag = 0;            // Предположим, что данные есть во всех очерядях.
             xSemaphoreTake ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
