@@ -9,7 +9,6 @@ int ay_ym_note::write_note_to_channel ( uint8_t chip_number, uint8_t channel, ui
     ay_queue_struct buf_data;
     buf_data.number_chip  = chip_number;
 
-
     switch( channel ) {      // Записываем ноту в выбранный канал.
     case 0:
             buf_data.reg = 0;  buf_data.data         = junior_byte;

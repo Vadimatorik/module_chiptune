@@ -139,6 +139,8 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         buf.reg     = 7;
         buf.data    = 0b11111000;
         xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
+        buf.data    = 0b11111000;
+        xQueueSend(obj->cfg->p_queue_array[1], &buf, portMAX_DELAY);
 
         vTaskDelay(1000);
         xSemaphoreGive(obj->semaphore);
