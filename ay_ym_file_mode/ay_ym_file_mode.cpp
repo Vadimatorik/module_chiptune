@@ -41,7 +41,7 @@ void ay_ym_file_mode::buf_update_task ( void* p_obj ) {
         uint8_t buffer_queue;
         uint8_t offset = o->cfg->circular_buffer_size / 512;                    // Сколько секторов за 1 раз следует считать. Зависит от буффера.
         while ( true ) {
-            USER_OS_QUEUE_RECEIVE( o->queue_update_buf, &buffer_queue, portMAX_DELAY );
+            USER_OS_QUEUE_RECEIVE( o->queue_update, &buffer_queue, portMAX_DELAY );
             if ( buffer_queue == 0 ) {                                            // Решаем, какую часть кольцевого буфера сейчас перезаполняем.
                 if ( o->psg_part_copy_from_sd_to_array( o->sektor, 0,                            offset, &o->l) != AY_FILE_MODE::OK )
                     break;    // Если не считалось (проблемы с картой или еще что - выходим с ошибкой. Все манипуляции с картой внутри метода.
