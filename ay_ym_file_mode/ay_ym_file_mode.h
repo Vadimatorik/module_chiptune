@@ -23,7 +23,7 @@ enum class AY_FILE_MODE {
     OK                      = 0,
     OPEN_FILE_ERROR         = -1,
     OPEN_DIR_ERROR          = -2,
-    OPEN_RED_DIR_ERROR      = -3,
+    OPEN_READ_DIR_ERROR      = -3,
     READ_FILE_ERROR         = -4,
     END_TRACK               = 255
 };
@@ -33,11 +33,11 @@ public:
     ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg );
     void    file_update             ( char* dir, char* name );                                      // Задаем директорию и имя.
                                                                                                     // Можно передавать только директорию или только имя, если методам ниже иного не нужно.
-    AY_FILE_MODE        psg_file_play ( void );                                                      // Открываем файл с заданным именем в заданной директори (выбирается заранее).
-    void    psg_file_stop           ( void );                                                       // Останавливакем воспроизведение.
-    int     find_psg_file           ( void );                                                       // Составляем список psg файлов в заданной директории.
-    int     file_sort               ( void );                                                       // Сортируем существующий в директории список.
-    int     psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );    // Получаем имя и длительность файла.
+    AY_FILE_MODE        psg_file_play           ( void );                                                      // Открываем файл с заданным именем в заданной директори (выбирается заранее).
+    void                psg_file_stop           ( void );                                                       // Останавливакем воспроизведение.
+    AY_FILE_MODE        find_psg_file           ( uint32_t& file_number );                                                       // Составляем список psg файлов в заданной директории.
+    int                 file_sort               ( void );                                                       // Сортируем существующий в директории список.
+    AY_FILE_MODE                 psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );    // Получаем имя и длительность файла.
 
     // Очищаем чип через очередь.
     void    clear_chip              ( uint8_t chip_number );
@@ -47,7 +47,7 @@ public:
 private:
     AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
     AY_FILE_MODE     psg_file_get_long       ( char* name, uint8_t* buffer, uint32_t& result_long );                                                       // Получаем длину файла.
-
+    int              chack_psg_file ( char *p_dot );
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
     // Очередь через которую производится передача команды задаче обновления буфера.
@@ -65,10 +65,12 @@ private:
 
 
     uint32_t    dir_number_file;        // Колличество файлов в текущей директории (обновляется методом ay_find_psg_file).
+    DIR         dir;
     FIL         file;                   // Читаемый файл. Он использутеся как методов воспроизведения psg, так и обновлением кольцевого буффера.
+    FILINFO     file_info;// Сюда будут класться имена файлов в директории.
     // Для работы кольцевого буффера.
-    char *directory_path;               // Директория, где лежит файл для воспроизведения.
-    char *file_name;                    // Его имя.
+    char* dir_path;                     // Директория, где лежит файл для воспроизведения.
+    char* file_name;                    // Его имя.
     uint32_t sektor;                    // Сектор, который следует считать в следущий раз.
 
 
