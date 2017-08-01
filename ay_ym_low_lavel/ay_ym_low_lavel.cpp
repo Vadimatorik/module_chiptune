@@ -143,10 +143,10 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         xQueueSend(obj->cfg->p_queue_array[1], &buf, portMAX_DELAY);
 
         vTaskDelay(1000);
-        xSemaphoreGive(obj->semaphore);
+        USER_OS_GIVE_BIN_SEMAPHORE(obj->semaphore);
         while( true ) {
             flag = 0;            // Предположим, что данные есть во всех очерядях.
-            xSemaphoreTake ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
+            USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
                 while (flag != (0xFFFFFFFF >>(32- obj->cfg->ay_number)) ) {    // Выдаем данные, пока все очереди не освободятся.]
                     /*
                      * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).

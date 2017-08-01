@@ -11,7 +11,7 @@ struct ay_ym_file_mode_struct_cfg_t {
     USER_OS_STATIC_QUEUE*       queue_feedback;                // Для того, чтобы уведомить о каком-либо событии какой-либо поток. Например, что произошла остановка плеера.
     FATFS*                      fat;                           // Указатель на объект файловой системы карты, с которой работаем (карта должна быть заранее открыта и готова к работе).
     const uint8_t               circular_buffer_task_prio;     // Приоритет задачи для обновления кольцевого буффера.
-    uint16_t                    circular_buffer_size;          // Размер половины кольцевого буффера.
+    uint16_t                    circular_buffer_size;          // Размер половины кольцевого буффера (должен быть кратен 512 байт).
     uint8_t*                    p_circular_buffer;             // Кольцевой буффер. Размер circular_buffer_size * 2. Выделяется пользователем заранее.
 };
 
@@ -20,8 +20,7 @@ struct ay_ym_file_mode_struct_cfg_t {
  * Ответ int формата.
  */
 enum class AY_FILE_MODE {
-    OPEN_CARD_OK            = 0,
-    OPEN_FILE_OK            = 1,
+    OK                      = 0,
     OPEN_FILE_ERROR         = -1,
     OPEN_DIR_ERROR          = -2,
     OPEN_RED_DIR_ERROR      = -3,
@@ -41,9 +40,14 @@ public:
     int     file_sort               ( void );                                                       // Сортируем существующий в директории список.
     int     psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );	// Получаем имя и длительность файла.
 
+    // Очищаем чип через очередь.
+    void    clear_chip              ( uint8_t chip_number );
+
     static  void buf_update_task    ( void* p_obj );
 
 private:
+    AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
+
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
     // Очередь через которую производится передача команды задаче обновления буфера.
@@ -61,7 +65,7 @@ private:
 
 
     uint32_t 	dir_number_file;		// Колличество файлов в текущей директории (обновляется методом ay_find_psg_file).
-    FIL 		fil_psg;				// Читаемый файл. Он использутеся как методов воспроизведения psg, так и обновлением кольцевого буффера.
+    FIL 		file;                   // Читаемый файл. Он использутеся как методов воспроизведения psg, так и обновлением кольцевого буффера.
     // Для работы кольцевого буффера.
     char *directory_path;               // Директория, где лежит файл для воспроизведения.
     char *file_name;                    // Его имя.
