@@ -10,7 +10,7 @@ ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cf
 }
 
 // Принимаем указатели на заранее заданные строки пути и имени.
-void ay_ym_file_mode::file_update ( char* dir, char* name ){
+void ay_ym_file_mode::file_update ( char* dir, char* name ) {
     if ( dir  != nullptr )  this->directory_path = dir;
     if ( name != nullptr )  this->file_name      = name;
 }
@@ -19,7 +19,7 @@ void ay_ym_file_mode::file_update ( char* dir, char* name ){
 // ( 1 кусок - number_sector * 512 байт, счет с 0 ).
 AY_FILE_MODE ay_ym_file_mode::psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l ) {
     USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );         // Ждем, пока освободится microsd.
-    if ( f_lseek( &this->file, sektor * 512 ) == FR_OK){                    // Переходим к сектору в файле.
+    if ( f_lseek( &this->file, sektor * 512 ) == FR_OK) {                    // Переходим к сектору в файле.
         // Читаем в кольцевой буфер кусок.
         if ( f_read( &this->file, &this->cfg->p_circular_buffer[ point_buffer ], 512 * number_sector, l) == FR_OK ) {
             USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );                // Показываем, что карта нам теперь не нужна.
@@ -42,15 +42,15 @@ void ay_ym_file_mode::buf_update_task ( void* p_obj ) {
         uint8_t offset = o->cfg->circular_buffer_size / 512;                    // Сколько секторов за 1 раз следует считать. Зависит от буффера.
         while ( true ) {
             USER_OS_QUEUE_RECEIVE( o->queue_update_buf, &buffer_queue, portMAX_DELAY );
-            if ( buffer_queue == 0 ){											// Решаем, какую часть кольцевого буфера сейчас перезаполняем.
+            if ( buffer_queue == 0 ) {                                            // Решаем, какую часть кольцевого буфера сейчас перезаполняем.
                 if ( o->psg_part_copy_from_sd_to_array( o->sektor, 0,                            offset, &o->l) != AY_FILE_MODE::OK )
-                    break;	// Если не считалось (проблемы с картой или еще что - выходим с ошибкой. Все манипуляции с картой внутри метода.
+                    break;    // Если не считалось (проблемы с картой или еще что - выходим с ошибкой. Все манипуляции с картой внутри метода.
             } else {        // Пишем с середины кольцевого буфера.
                 if ( o->psg_part_copy_from_sd_to_array( o->sektor, o->cfg->circular_buffer_size, offset, &o->l) != AY_FILE_MODE::OK )
                     break;
             }
             o->sektor += offset;                                                // В следущий раз - другой блок.
-            USER_OS_GIVE_BIN_SEMAPHORE( o->c_buf_semaphore );					// Буффером можно пользоваться.
+            USER_OS_GIVE_BIN_SEMAPHORE( o->c_buf_semaphore );                    // Буффером можно пользоваться.
         }
     }
 }
@@ -66,197 +66,209 @@ void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
 
     this->cfg->ay_hardware->queue_add_element( &buf );
 
-    for (int l = 0; l<7; l++){		// Очищаем первые 7 регистров.
+    for (int l = 0; l<7; l++) {        // Очищаем первые 7 регистров.
         buf.reg = l;
         this->cfg->ay_hardware->queue_add_element( &buf );
     }
-    for (int l = 8; l<16; l++){		// Остальные.
+    for (int l = 8; l<16; l++) {        // Остальные.
         buf.reg = l;
         this->cfg->ay_hardware->queue_add_element( &buf );
     }
 }
 
-/* Получаем длину файла PSG в "колличестве 0xFF". По сути, 1 0xFF = 20 мс.
+/*
+ * Получаем длину файла PSG в "колличестве 0xFF". По сути, 1 0xFF = 20 мс.
  * Т.к. между ними данные передаются практически мгновенно.
  * Мы должны заранее находится в нужной директории.
  * Передаем указатель на строку-имя файла.
  * Можно напрямую из file_info. Чтобы не тратить время на копирование.
- * ВАЖНО!: метод не следит за mutex-ом MicroSD! => вызываеться данный метод может только из под другого.
- * Который разрулит все проблемы.
+ * ВАЖНО!: метод не следит за mutex-ом MicroSD! => вызываеться данный метод может только из под другого метода,
+ * который разрулит все проблемы.
  * ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
  * Как вариант - на момент создания списка - использовать кольцевой буффер.
- *//*
-int _ay_psg_file_get_long (int fd, char *name, uint8_t *buffer){
-    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);
+ */
+AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint8_t* buffer, uint32_t& result_long ) {
+    uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
+    uint32_t    file_psg_long   = 0;     // Длина файла в 0xFF-ах.
+    UINT        l = 0;                   // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
+    uint16_t    p_data_buf = 16;     // А это номер элемента в буффере, с которого идет анализ.
 
-    FIL fil_psg;				// Файл, который будем сканировать.
-    uint8_t flag_one_read = 0; 	// Флаг первого чтения. Чтобы сразу перескачить заголовок.
-    uint32_t file_psg_long = 0;	// Длина файла в 0xFF-ах.
-    UINT l = 0;						// Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
-    uint16_t point_data_buf = 16;	// А это номер элемента в буффере, который мы будем тестировать.
-
-    // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего. Но мы возвращаем, что файл поврежден.
-    if (f_open(&fil_psg, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK){
-        return OPEN_FILE_ERROR;
+    // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
+    if ( f_open( &this->file, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK ) {
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
     };
 
-    // Идем по блокам файла.
-    for (uint32_t loop_byte_file = 16; loop_byte_file < f_size(&fil_psg); loop_byte_file++){
-        if (l == 0){	// Если байты закончались - считываем еще 512.
-            if (f_read(&fil_psg, buffer, 512, &l) != FR_OK) {		// Если считать не удалось - выходим с ошибкой.
-                return READ_FILE_ERROR;
+    uint16_t file_size = f_size( &this->file );             // Полный размер файла (всего).
+
+    // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
+    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++ ) {
+        if ( l == 0 ) {                                                                       // Если байты закончались - считываем еще 512.
+            if ( f_read( &this->file, buffer, 512, &l ) != FR_OK ) {       // Если считать не удалось - выходим с ошибкой.
+                return AY_FILE_MODE::READ_FILE_ERROR;
             };
-            if (flag_one_read != 0) {
-                point_data_buf = 0;
+            if ( flag_one_read != 0 ) {
+                p_data_buf = 0;
             } else {
-                point_data_buf = 16;// Пропускаем заголовок, по-этому, сразу отнимаем.
+                p_data_buf = 16;                // Пропускаем заголовок, по-этому, сразу отнимаем.
                 l-=16;
                 flag_one_read = 1;
             }
         }
-        if ((uint8_t)o->psg_file_buf[point_data_buf] == 0xFF) {
-            file_psg_long++;	// Если нашли 0xFF - то это пауза. => 20 мс.
+        if ( buffer[p_data_buf] == 0xFF ) {
+            file_psg_long++;    // Если нашли 0xFF - то это пауза. => 20 мс.
         }
-        point_data_buf++;
+        p_data_buf++;
         l--;
     };
 
-    f_close(&fil_psg);			// Закрываем файл.
-    return file_psg_long;
+    f_close( &this->file );            // Закрываем файл.
+    result_long = file_psg_long;
+    return AY_FILE_MODE::OK;
 }
 
+
 // Останавливаем трек и чистим буффера.
-void ay_psg_file_play_break(int ay_file_mode_fd){
-    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (ay_file_mode_fd);
-    o->emergency_team = 1; // ay_psg_file_play_from_microSD сканирует эту переменную.
+void ay_ym_file_mode::psg_file_stop ( void ) {
+    this->emergency_team = 1; // ay_psg_file_play_from_microSD сканирует эту переменную.
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-int ay_psg_file_play_from_microSD(int fd){
-    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);
-    uint16_t buffer_queue = 0;	// Буффер для элемента, который положем в очередь.
-    uint8_t flag = 0; 	// Чтобы различать, что мы считали. Регистр - или значение. Сначала - регистр.
-    uint16_t point_data_buf = 16;	// А это номер элемента в буффере, из которого мы будем выдавать данные. Начинаем с 16-го файла, т.к. до него у нас заголовок.
-    uint8_t command_buffer;			// Сюда будем класть поручение, в какую часть буффера класть данные.
-    o->sektor = 0;								// Читаем с начала.
-    o->emergency_team = 0;						// На случай, если тыкнули на остановку до воспроизведения.
-    ay_play_stait(*o->cfg->fd_ay_hardware, 1);
-    ay_clear_to_queue(*o->cfg->fd_ay_hardware);	// Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
+AY_FILE_MODE ay_ym_file_mode::psg_file_play ( void ) {
+    ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
+
+
+    uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
+    uint16_t            p_data_buf = 16;                // А это номер элемента в буффере, из которого мы будем выдавать данные. Начинаем с 16-го байта, т.к. до него у нас заголовок.
+    uint8_t             cmd_buffer = 0;                 // Сюда будем класть указание, в какую часть буффера класть данные.
+    this->sektor = 0;                                   // Читаем с начала.
+    this->emergency_team = 0;                           // На случай, если тыкнули на остановку до воспроизведения до этого.
+    this->cfg->ay_hardware->play_set_state( 1 );
+    this->clear_chip( 0 );                              // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
+
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего. Но мы возвращаем, что файл поврежден.
-    if (f_open(&o->fil_psg, o->file_name, FA_OPEN_EXISTING | FA_READ ) != FR_OK){		// Открываем файл, из которого будем читать.
-        return OPEN_FILE_ERROR;
+    if ( f_open( &this->file, this->file_name, FA_OPEN_EXISTING | FA_READ ) != FR_OK ) {        // Открываем файл, из которого будем читать.
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
     };
+
     // Заполняем кольцевой буффер.
-    xSemaphoreTake(o->buffer_semaphore, (TickType_t) 0);	// Буффер может быть заполнен другим файлом.
-    command_buffer = 0; xQueueSend( o->queue_update_buf, &command_buffer, portMAX_DELAY  );
-    xSemaphoreTake(o->buffer_semaphore, (TickType_t) portMAX_DELAY);	// Изначально буффер microsd свободен.
-    command_buffer = 1; xQueueSend( o->queue_update_buf, &command_buffer, portMAX_DELAY  );
-    for (uint32_t loop_byte_file = 16; loop_byte_file < f_size(&o->fil_psg); loop_byte_file++, point_data_buf++){
-        if (o->emergency_team != 0){			// Если пришла какая-то срочная команда!
-            if (o->emergency_team == 1){		// Если нужно остановить воспроизведение.
-                o->emergency_team = 0;			// Мы приняли задачу.
-                command_buffer = END_TRACK; xQueueSend( *o->cfg->queue_feedback, &command_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
-                return 0;							// Выключаем AY, выдаем в очередь флаг окончания и выходим.
+    USER_OS_TAKE_BIN_SEMAPHORE( this->c_buf_semaphore, 0 );    // Буффер может быть заполнен другим файлом.
+    cmd_buffer = 0;
+    USER_OS_QUEUE_SEND( this->queue_update_buf, &cmd_buffer, portMAX_DELAY  );               // Просим задачу в другом потоке заполнить буфер.
+    USER_OS_TAKE_BIN_SEMAPHORE( this->c_buf_semaphore, portMAX_DELAY );                     // Ждем, пока она это сделает.
+    cmd_buffer = 1;                                                                          // Так же и со второй частью кольцевого буфера.
+    USER_OS_QUEUE_SEND( this->queue_update_buf, &cmd_buffer, portMAX_DELAY  );
+
+    uint32_t file_size = f_size( &this->file );
+
+    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p_data_buf++ ) {
+        if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
+            if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
+                this->emergency_team = 0;             // Мы приняли задачу.
+                cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
+                USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
+                return AY_FILE_MODE::OK;                            // Выключаем AY, выдаем в очередь флаг окончания и выходим.
             }
         };
         // Смотрим, не закончилась ли часть буффера.
-        if (point_data_buf == o->cfg->circular_buffer_size/2){
-            xSemaphoreTake ( o->buffer_semaphore, (TickType_t) portMAX_DELAY );	// К этому времени у нас уже должена была перезаписаться часть буффера.
-            command_buffer = 0;
-            xQueueSend( o->queue_update_buf, ( void * ) &command_buffer, portMAX_DELAY  );	// Приказываем перезаписать часть, которую уже выдали.
+        if ( p_data_buf == this->cfg->circular_buffer_size ) {
+            USER_OS_TAKE_BIN_SEMAPHORE ( this->c_buf_semaphore, portMAX_DELAY );    // К этому времени у нас уже должена была перезаписаться часть буффера.
+            cmd_buffer = 0;
+            USER_OS_QUEUE_SEND( this->queue_update_buf, ( void * ) &cmd_buffer, portMAX_DELAY  );    // Приказываем перезаписать часть, которую уже выдали.
         };
-        if (point_data_buf == o->cfg->circular_buffer_size){
-            xSemaphoreTake ( o->buffer_semaphore, (TickType_t) portMAX_DELAY );	// К этому времени у нас уже должена была перезаписаться часть буффера.
-            command_buffer = 1;
-            xQueueSend( o->queue_update_buf, ( void * ) &command_buffer, portMAX_DELAY  );	// Приказываем перезаписать часть, которую уже выдали.
-            point_data_buf = 0;
+        if (p_data_buf == this->cfg->circular_buffer_size) {
+            USER_OS_TAKE_BIN_SEMAPHORE ( this->c_buf_semaphore, portMAX_DELAY );    // К этому времени у нас уже должена была перезаписаться часть буффера.
+            cmd_buffer = 1;
+            USER_OS_QUEUE_SEND( this->queue_update_buf, ( void * ) &cmd_buffer, portMAX_DELAY  );    // Приказываем перезаписать часть, которую уже выдали.
+            p_data_buf = 0;
         };
-        if ((uint8_t)o->psg_file_buf[point_data_buf] == 0xFF) {	// 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
-            buffer_queue = 0xFF;
-            //ay_queue_add_element(*o->cfg->fd_ay_hardware, &buffer_queue);
+        if ( this->cfg->p_circular_buffer[p_data_buf] == 0xFF ) {    // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
+            buffer_queue.reg = 0xFF;
+            this->cfg->ay_hardware->queue_add_element( &buffer_queue );
         } else {
             if (flag == 0) {
-                buffer_queue = (uint8_t)o->psg_file_buf[point_data_buf] << 8;
+                buffer_queue.reg = this->cfg->p_circular_buffer[p_data_buf];                      // Регистр мы просто записываем. Но не отправляем в очередь.
                 flag = 1;
             } else {
-                buffer_queue |= (uint8_t)o->psg_file_buf[point_data_buf];
-                //ay_queue_add_element(*o->cfg->fd_ay_hardware, &buffer_queue);
+                buffer_queue.data = this->cfg->p_circular_buffer[p_data_buf];                     // Теперь, когда у нас есть актуальное значение регистра и данных в него, кидаем пачку в очередь.
+                this->cfg->ay_hardware->queue_add_element( &buffer_queue );
                 flag = 0;
             };
         };
     };
-    if (f_close(&o->fil_psg) != FR_OK){		// Все прочитано, закрываем файл.
-        //return OPEN_FILE_ERROR; Обработка исключительной ситуации.
+    if ( f_close( &this->file ) != FR_OK ) {                    // Все прочитано, закрываем файл.
+        return AY_FILE_MODE::OPEN_FILE_ERROR;                   // Обработка исключительной ситуации.
     };
-    ay_play_stait(*o->cfg->fd_ay_hardware, 1);	// Очищаем чип (многие psg в конце чип оставляют заполненным).
-    ay_delay_clean(*o->cfg->fd_ay_hardware);	// Ждем, пока все данные в AY передадутся.
-    ay_play_stait(*o->cfg->fd_ay_hardware, 0);
-    command_buffer = END_TRACK; xQueueSend( *o->cfg->queue_feedback, &command_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
-    return 0;
-}
+    this->cfg->ay_hardware->play_set_state( 1 );
+   // ay_delay_clean(*this->cfg->fd_ay_hardware);    // Ждем, пока все данные в AY передадутся.
+    this->cfg->ay_hardware->play_set_state( 0 );
 
+    cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
+    USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
+    return AY_FILE_MODE::OK;
+}
+/*
 // Смотрим на разрешение после точки. Если это psg = 1, нет = 0.
-int _chack_psg_file (char *point_dot){
+int _chack_psg_file (char *point_dot) {
     if (((point_dot[1] == 'p')|(point_dot[1] == 'P')) &&
         ((point_dot[2] == 's')|(point_dot[2] == 'S')) &&
         ((point_dot[3] == 'g')|(point_dot[3] == 'G')) &&
-        (point_dot[4] == 0)){			// В конце обязательно должен быть 0! Защита от мусора.
-        return 1;	// Это psg.
+        (point_dot[4] == 0)) {            // В конце обязательно должен быть 0! Защита от мусора.
+        return 1;    // Это psg.
     };
-    return 0;	// Не psg.
+    return 0;    // Не psg.
 }
 */
 /* Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
  * Составляем список psg файлов.
- * 		При этом, если файл битый и его длительность нельзя определить - его в список не включаем.
- *		Формат psg_list.list:
- *		|<--256_символов_имени-->|<-4_байта_uint32_t_время_в_секундах->|
+ *         При этом, если файл битый и его длительность нельзя определить - его в список не включаем.
+ *        Формат psg_list.list:
+ *        |<--256_символов_имени-->|<-4_байта_uint32_t_время_в_секундах->|
  */
 /*
-int ay_find_psg_file (int fd){
+int ay_find_psg_file (int fd) {
     // После поиска все структуру работы с FatFS, объявленные здесь - будут удалены за ненадобностью.
-    DIR dir_psg_find;				// Директория, которую сканируем.
-    FIL fil_psg_list;				// Для записи в list_psg.
-    FILINFO fil_info;				// Сюда будут класться имена файлов в директории.
-    int result = OPEN_FILE_OK;		// Флаг ошибки (если -n) или колличество psg (если 0+).
-    int psg_file_loop = 0;			// Колличество PSG файлов.
-    UINT rw_res = 0;				// Для проверки валидности чтения/записи.
+    DIR dir_psg_find;                // Директория, которую сканируем.
+    FIL file_list;                // Для записи в list_psg.
+    FILINFO fil_info;                // Сюда будут класться имена файлов в директории.
+    int result = OPEN_FILE_OK;        // Флаг ошибки (если -n) или колличество psg (если 0+).
+    int psg_file_loop = 0;            // Колличество PSG файлов.
+    UINT rw_res = 0;                // Для проверки валидности чтения/записи.
 
-    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);			// Достаем нашу основную структуру.
+    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);            // Достаем нашу основную структуру.
 
     xSemaphoreTake ( *o->cfg->microsd_mutex, (TickType_t) portMAX_DELAY ); // Ждем, пока освободится microsd.
 
     result = f_opendir(&dir_psg_find, o->directory_path);
     if (result != FR_OK) return OPEN_DIR_ERROR;
-    result = f_open(&fil_psg_list, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+    result = f_open(&file_list, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
     if (result != FR_OK) return OPEN_FILE_ERROR;
 
     // Если все открылось - идем дальше.
-    memset(o->psg_file_buf, 0, o->cfg->circular_buffer_size);	// Чистим массив (Чтобы все было четко потом. Без этого нельзя.)
+    memset(o->psg_file_buf, 0, o->cfg->circular_buffer_size);    // Чистим массив (Чтобы все было четко потом. Без этого нельзя.)
 
     // Перебираем все файлы.
-    while (1){
-        memset(&fil_info, 0, sizeof(fil_info));		// Чистим имя файла, т.к. новый может оказаться меньше старого, и тогда после символа окончания строки будет еще мусор.
-        result = f_readdir(&dir_psg_find, &fil_info);// != FR_OK){// && ((*o->cfg->fil_info)->fname[0] != 0)){	// Читаем, пока файлы не кончатся (символ '0' означает, что файлы закончились). Главное, чтобы с картой все норм было.
-        if (result != FR_OK) return OPEN_RED_DIR_ERROR;	// Если в процессе чтения произошла ошибка - выходим ни с чем.
-        if (fil_info.fname[0] == 0){		// Если файлы на карте закончались - выходим.
+    while (1) {
+        memset(&fil_info, 0, sizeof(fil_info));        // Чистим имя файла, т.к. новый может оказаться меньше старого, и тогда после символа окончания строки будет еще мусор.
+        result = f_readdir(&dir_psg_find, &fil_info);// != FR_OK) {// && ((*o->cfg->fil_info)->fname[0] != 0)) {    // Читаем, пока файлы не кончатся (символ '0' означает, что файлы закончились). Главное, чтобы с картой все норм было.
+        if (result != FR_OK) return OPEN_RED_DIR_ERROR;    // Если в процессе чтения произошла ошибка - выходим ни с чем.
+        if (fil_info.fname[0] == 0) {        // Если файлы на карте закончались - выходим.
             break;
         }
         // Если перед нами файл, смотрим по его разрешению, PSG это файл или нет.
-        for (uint16_t l_byte = 0; l_byte < _MAX_LFN + 1; l_byte++){// Идем по всей длине файла. Если вдруг не указали расширения, то просто пропустим его.
-            if (fil_info.fname[l_byte] == '.'){	   // Ищем, откуда идет разширение.
-                if (_chack_psg_file(&fil_info.fname[l_byte]) != 1)	break;	// Если это не psg - к следущему файлу.
+        for (uint16_t l_byte = 0; l_byte < _MAX_LFN + 1; l_byte++) {// Идем по всей длине файла. Если вдруг не указали расширения, то просто пропустим его.
+            if (fil_info.fname[l_byte] == '.') {       // Ищем, откуда идет разширение.
+                if (_chack_psg_file(&fil_info.fname[l_byte]) != 1)    break;    // Если это не psg - к следущему файлу.
 
                 // Теперь мы точно знаем, что перед нами файл с разрешением PSG. Проверяем его длину.
                 int result_check_psg = _ay_psg_file_get_long(fd, fil_info.fname, o->psg_file_buf);
-                if (result_check_psg>0){	// Если длина определилась нормально.
+                if (result_check_psg>0) {    // Если длина определилась нормально.
                     // Переходим к нужной позиции в list файле.
-                    if (f_lseek(&fil_psg_list, psg_file_loop*(256+4)) == FR_OK){		// Если все четко - дальеш.
-                        if ((f_write(&fil_psg_list, fil_info.fname, 256, &rw_res) == FR_OK) && (rw_res == 256)){	// Если записалось имя как надо.
-                            result_check_psg = result_check_psg*20/1000;	// Получаем колличество секунд.
-                            if ((f_write(&fil_psg_list, &result_check_psg, 4, &rw_res) == FR_OK) && (rw_res == 4)){	// После имени еще 4 байта на размер.
-                                psg_file_loop++;		// Мы нашли psg.
-                                break;			// После этого выходим.
+                    if (f_lseek(&file_list, psg_file_loop*(256+4)) == FR_OK) {        // Если все четко - дальеш.
+                        if ((f_write(&file_list, fil_info.fname, 256, &rw_res) == FR_OK) && (rw_res == 256)) {    // Если записалось имя как надо.
+                            result_check_psg = result_check_psg*20/1000;    // Получаем колличество секунд.
+                            if ((f_write(&file_list, &result_check_psg, 4, &rw_res) == FR_OK) && (rw_res == 4)) {    // После имени еще 4 байта на размер.
+                                psg_file_loop++;        // Мы нашли psg.
+                                break;            // После этого выходим.
                             };
                         };
                     };
@@ -266,66 +278,66 @@ int ay_find_psg_file (int fd){
         };
     };
 
-    result =  f_close(&fil_psg_list);						// Закрываем list файл.
-    xSemaphoreGive(*o->cfg->microsd_mutex);	// sdcard свободна.
+    result =  f_close(&file_list);                        // Закрываем list файл.
+    xSemaphoreGive(*o->cfg->microsd_mutex);    // sdcard свободна.
 
-    if (result<0) {	// Если в процессе чтения произошла ошибка - выдаем ее.
+    if (result<0) {    // Если в процессе чтения произошла ошибка - выдаем ее.
         return result;
     } else {
-        o->dir_number_file = psg_file_loop;	// Сохраняем, чтобы другие методы могли пользоваться.
+        o->dir_number_file = psg_file_loop;    // Сохраняем, чтобы другие методы могли пользоваться.
         return psg_file_loop;
     };
     return 0;
 }
 
 // Получаем имя файла и его длительность по его номеру из отсортированного списка.
-int ay_psg_file_get_name (int fd, uint32_t psg_file_number, char *buf_name, uint32_t *time){
+int ay_psg_file_get_name (int fd, uint32_t psg_file_number, char *buf_name, uint32_t *time) {
     ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);
-    FIL fil_get_name;				// Чтобы не мешать воспроизведению файла, создаем еще 1.
+    FIL fil_get_name;                // Чтобы не мешать воспроизведению файла, создаем еще 1.
     //DIR dir_file;
-    UINT l = 0;						// Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
+    UINT l = 0;                        // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
     xSemaphoreTake ( *o->cfg->microsd_mutex, (TickType_t) portMAX_DELAY ); // Ждем, пока освободится microsd.
 
     volatile int res;
     // Если карта не открылась нормально - отдаем мутекс и выходим.
     res = f_open(&fil_get_name, "psg_list.list", FA_OPEN_EXISTING | FA_READ );
-    if (res != FR_OK){
+    if (res != FR_OK) {
             xSemaphoreGive(*o->cfg->microsd_mutex);
             return OPEN_FILE_ERROR;
     };
 
-    if (f_lseek(&fil_get_name, psg_file_number*(256+4)) == FR_OK){	// Переходим к нужному файлу.
-        if (f_read(&fil_get_name, buf_name, 256, &l) != FR_OK) {	// Читаем строку.
+    if (f_lseek(&fil_get_name, psg_file_number*(256+4)) == FR_OK) {    // Переходим к нужному файлу.
+        if (f_read(&fil_get_name, buf_name, 256, &l) != FR_OK) {    // Читаем строку.
             return READ_FILE_ERROR;
         };
-        if (f_read(&fil_get_name, time, 4, &l) != FR_OK){			// Читаем время.
+        if (f_read(&fil_get_name, time, 4, &l) != FR_OK) {            // Читаем время.
             return READ_FILE_ERROR;
         };
     };
 
-    f_close(&fil_get_name);			// Закрываем файл.
+    f_close(&fil_get_name);            // Закрываем файл.
 
     xSemaphoreGive(*o->cfg->microsd_mutex);
     return 0;
 }
 
 // Моя реализация интеллектуальной сортировки без учета регистра.
-int _intelligent_sorting (char *string1, char *string2){
-    char char_1, char_2;		// Буфферы для сравнения.
-    int result = 0;				// -1 - 0-я меньше; 0 - равны; 1 - s2 больше.
-    for (int loop_char = 0; loop_char < 256; loop_char++){ // Проходимся по всем символам строки.
+int _intelligent_sorting (char *string1, char *string2) {
+    char char_1, char_2;        // Буфферы для сравнения.
+    int result = 0;                // -1 - 0-я меньше; 0 - равны; 1 - s2 больше.
+    for (int loop_char = 0; loop_char < 256; loop_char++) { // Проходимся по всем символам строки.
         if ((uint8_t)string1[loop_char] == 0) { result = -1; return result;};
         if ((uint8_t)string2[loop_char] == 0) { result = 1; return result;};
-        if (((uint8_t)string1[loop_char] >= (uint8_t)'A') && ((uint8_t)string1[loop_char] <= (uint8_t)'Z')){	// Если буква большая.
-            char_1 = (char)((uint8_t)string1[loop_char] + (uint8_t)('a'-'A'));		// Делаем из большей малую.
+        if (((uint8_t)string1[loop_char] >= (uint8_t)'A') && ((uint8_t)string1[loop_char] <= (uint8_t)'Z')) {    // Если буква большая.
+            char_1 = (char)((uint8_t)string1[loop_char] + (uint8_t)('a'-'A'));        // Делаем из большей малую.
         } else char_1 = string1[loop_char];
-        if (((uint8_t)string2[loop_char] >= (uint8_t)'A') && ((uint8_t)string2[loop_char] <= (uint8_t)'Z')){	// Если буква большая.
-            char_2 = (char)((uint8_t)string2[loop_char] + (uint8_t)('a'-'A'));		// Делаем из большей малую.
+        if (((uint8_t)string2[loop_char] >= (uint8_t)'A') && ((uint8_t)string2[loop_char] <= (uint8_t)'Z')) {    // Если буква большая.
+            char_2 = (char)((uint8_t)string2[loop_char] + (uint8_t)('a'-'A'));        // Делаем из большей малую.
         } else char_2 = string2[loop_char];
-        if ((uint8_t)char_1 < (uint8_t)char_2){
+        if ((uint8_t)char_1 < (uint8_t)char_2) {
             result = -1;
             return result;
-        } else if ((uint8_t)char_1 > (uint8_t)char_2){
+        } else if ((uint8_t)char_1 > (uint8_t)char_2) {
             result = 1;
             return result;
         };
@@ -334,36 +346,36 @@ int _intelligent_sorting (char *string1, char *string2){
 }
 
 // Сортируем уже существующий список.
-int ay_file_sort (int fd){
+int ay_file_sort (int fd) {
     ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);
     UINT wr_status;
-    uint8_t flag; 	// Флаг указывает, какое из 2-х имен в буффере мы записали в microsd и его можно заменить новым.
-    FIL fil_psg_list;				// Для записи в list_psg.
-    if (f_open(&fil_psg_list, "psg_list.list", FA_OPEN_EXISTING | FA_READ | FA_WRITE) != FR_OK){
+    uint8_t flag;     // Флаг указывает, какое из 2-х имен в буффере мы записали в microsd и его можно заменить новым.
+    FIL file_list;                // Для записи в list_psg.
+    if (f_open(&file_list, "psg_list.list", FA_OPEN_EXISTING | FA_READ | FA_WRITE) != FR_OK) {
         return OPEN_FILE_ERROR;
     };
 
-    for (uint32_t loop = 0; loop<o->dir_number_file; loop++){ // Проходимся по n файлам n-1 раз.
-        if (f_lseek(&fil_psg_list, 0) != FR_OK){return READ_FILE_ERROR;};
-        while (f_read(&fil_psg_list, o->psg_file_buf, 256 + 4, &wr_status) != FR_OK){};	// Копируем только имя + время.
+    for (uint32_t loop = 0; loop<o->dir_number_file; loop++) { // Проходимся по n файлам n-1 раз.
+        if (f_lseek(&file_list, 0) != FR_OK) {return READ_FILE_ERROR;};
+        while (f_read(&file_list, o->psg_file_buf, 256 + 4, &wr_status) != FR_OK) {};    // Копируем только имя + время.
         flag = 1;
-        for (uint32_t file_loop = 1; file_loop < o->dir_number_file; file_loop++){ //Считываем n-1 файлов в пары. После каждой итерации 1 файл записывается заменяя старый.
-            if (f_lseek(&fil_psg_list, file_loop*(256+4)) != FR_OK){return READ_FILE_ERROR;};
-            if (f_read(&fil_psg_list, &o->psg_file_buf[flag*(256+4)], 256 + 4, &wr_status) != FR_OK){return READ_FILE_ERROR;};
-            if (f_lseek(&fil_psg_list, (file_loop-1)*(256 + 4)) != FR_OK){return READ_FILE_ERROR;};
-            int string_result =_intelligent_sorting((char*)o->psg_file_buf, (char*)&o->psg_file_buf[256+4]);	// Между временем и строкой 100% будет пробел. => время не тронут.
-            if (string_result < 0){	// Если [0] строка меньше чем [256+4].
-                if (f_write(&fil_psg_list, &o->psg_file_buf[0], 256 + 4, &wr_status) != FR_OK){return READ_FILE_ERROR;};	// Обязательно записываем.
+        for (uint32_t file_loop = 1; file_loop < o->dir_number_file; file_loop++) { //Считываем n-1 файлов в пары. После каждой итерации 1 файл записывается заменяя старый.
+            if (f_lseek(&file_list, file_loop*(256+4)) != FR_OK) {return READ_FILE_ERROR;};
+            if (f_read(&file_list, &o->psg_file_buf[flag*(256+4)], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};
+            if (f_lseek(&file_list, (file_loop-1)*(256 + 4)) != FR_OK) {return READ_FILE_ERROR;};
+            int string_result =_intelligent_sorting((char*)o->psg_file_buf, (char*)&o->psg_file_buf[256+4]);    // Между временем и строкой 100% будет пробел. => время не тронут.
+            if (string_result < 0) {    // Если [0] строка меньше чем [256+4].
+                if (f_write(&file_list, &o->psg_file_buf[0], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};    // Обязательно записываем.
                 flag = 0;
             } else {
-                if (f_write(&fil_psg_list, &o->psg_file_buf[256 + 4], 256 + 4, &wr_status) != FR_OK){return READ_FILE_ERROR;};
+                if (f_write(&file_list, &o->psg_file_buf[256 + 4], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};
                 flag = 1;
             };
         };
     };
-    int res = f_close(&fil_psg_list);
+    int res = f_close(&file_list);
     xSemaphoreGive(*o->cfg->microsd_mutex);
-    if (res != FR_OK){
+    if (res != FR_OK) {
         return OPEN_FILE_ERROR;
     }
     return 0;

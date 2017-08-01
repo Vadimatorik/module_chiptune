@@ -1,10 +1,8 @@
 #include "ay_ym_low_lavel.h"
 
-void ay_ym_low_lavel::init ( void ) const {
+void ay_ym_low_lavel::init ( void ) {
     this->semaphore     = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
-
     memset( this->cfg->r7_reg, 0b111111,  this->cfg->ay_number );         // Все чипы отключены.
-
     USER_OS_STATIC_TASK_CREATE( this->task, "ay_low", 300, ( void* )this, this->cfg->task_prio, this->task_stack, &this->task_struct );
 }
 
@@ -178,55 +176,37 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                         obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
                     }
                     obj->out_data();
-                }
 
-            /*
-             * В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
-             */
-         /*   obj-> this->cfg->tic_ff++;
-            if (obj-> this->cfg->tic_ff == 50){        // Если насчитали секунду.
-                obj-> this->cfg->tic_ff = 0;
-                if (obj-> this->cfg->semaphore_sec_out != NULL){    // Если есть соединение семофором, то отдать его.
-                     xSemaphoreGive(*obj-> this->cfg->semaphore_sec_out);
-                };
-            };*/
+                    /*
+                     * В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
+                     */
+                    obj->tic_ff++;
+                    if ( obj->tic_ff == 50 ) {        // Если насчитали секунду.
+                        obj->tic_ff = 0;
+                        if ( obj->cfg->semaphore_sec_out != nullptr ) {    // Если есть соединение семофором, то отдать его.
+                             xSemaphoreGive( *obj->cfg->semaphore_sec_out );
+                        };
+                    };
+                }
     }
 }
 
-/*
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
-void ay_play_stait (int fd, uint8_t stait){
-    ay_init_t *d = eflib_getInstanceByFd (fd);
+void ay_ym_low_lavel::play_set_state ( uint8_t state ) const {
+    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );         // В любом случае писать будем в R7.
+    this->out_reg();
 
-    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );    // В любом случае писать будем в R7.
-    _out_reg(d);
-
-    if (stait){
-        port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 1);
-        port_timer_set_stait(* this->cfg->tim_event_ay_fd, 1);                    // Запускаем генерацию сигнала.
-        for (int loop_ay = 0; loop_ay< this->cfg->ay_number, TASK_PRIO, STRUCT_INIT; loop_ay++){        // Возвращаем состояние всех AY.
+    if ( state == 1 ){
+        //port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 1);
+        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 1);                    // Запускаем генерацию сигнала.
+        for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {         // Возвращаем состояние всех AY.
              this->cfg->p_sr_data[loop_ay] = this->cfg->r7_reg[loop_ay];
         };
-        _out_data(d);
+        this->out_data();
     } else {
-        port_timer_set_stait(* this->cfg->tim_event_ay_fd, 0);    // Останавливаем генерацию сигнала.
-        port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 0);
+        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 0);    // Останавливаем генерацию сигнала.
+        //port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 0);
         memset( this->cfg->p_sr_data, 0b111111,  this->cfg->ay_number );
-        _out_data(d);
+        this->out_data();
     };
 }
-
-// Убераем все следы воспроизведения предыдущего трека (остановить). Причем на всех чипах.
-void ay_music_off (int fd){
-    ay_init_t *d = eflib_getInstanceByFd (fd);
-    ay_play_stait(fd, 0);    // Останавливаем генерацию сигнала.
-    _ay_hardware_clear(d);    // Регистры в исходное состояние.
-    // Очищаем очереди всех AY.
-    uint16_t buf;
-    for (int loop_ay = 0; loop_ay< this->cfg->ay_number, TASK_PRIO, STRUCT_INIT; loop_ay++){        // Извлекаем данные из всех очередей.
-        while ((uxQueueMessagesWaiting(this->queue_out[loop_ay]) != 0 )){    // Если очередь не пуста (Есть хотя бы 1 пакет)- извлекаем все.
-            xQueueReceive(this->queue_out[loop_ay], &buf, 0);
-        }
-    };
-}
-*/

@@ -69,7 +69,7 @@ struct ay_low_out_data {
  */
 struct ay_queue_struct {
     uint8_t     number_chip;
-    uint8_t     reg;
+    uint8_t     reg;                // Когда здесь 0xFF - поле data игнорируется, считается командой паузы в одно прерывание!
     uint8_t     data;
 };
 
@@ -77,9 +77,10 @@ struct ay_queue_struct {
 // Очердь общая для все чипов!
 class ay_ym_low_lavel {
 public:
-    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg(cfg)  {}
+    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {};
+    void init ( void );
     void queue_add_element       ( ay_queue_struct* data ) const;
-    void init ( void ) const;
+    void play_set_state          ( uint8_t state ) const;
 
 private:
     const ay_ym_low_lavel_cfg_t* const cfg;
