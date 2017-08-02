@@ -222,20 +222,24 @@ int ay_ym_file_mode::chack_psg_file ( char *p_dot ) {
  * Составляем список psg файлов.
  *         При этом, если файл битый и его длительность нельзя определить - его в список не включаем.
  *        Формат psg_list.list:
- *        |<--256_символов_имени-->|<-4_байта_uint32_t_время_в_секундах->|
+ *        |<--255_символов_имени-->\0|<-4_байта_uint32_t_время_в_секундах->|
  */
 
 AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
-    int result = 0;                 // Флаг ошибки (если -n) или колличество psg (если 0+).
     file_number = 0;          // Колличество PSG файлов.
     UINT rw_res = 0;                // Для проверки валидности чтения/записи.
 
     USER_OS_TAKE_BIN_SEMAPHORE ( *this->cfg->microsd_mutex, portMAX_DELAY ); // Ждем, пока освободится microsd.
 
-    result = f_opendir(&this->dir, this->dir_path);
-    if ( result != FR_OK ) return AY_FILE_MODE::OPEN_DIR_ERROR;
-    result = f_open(&this->file, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
-    if ( result != FR_OK ) return AY_FILE_MODE::OPEN_FILE_ERROR;
+    if ( f_opendir(&this->dir, this->dir_path) != FR_OK ) {
+        USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
+        return AY_FILE_MODE::OPEN_DIR_ERROR;
+    }
+
+    if ( f_open(&this->file, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK ) {
+        USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
+    }
 
     // Если все открылось - идем дальше.
     // Будем пользовать кольцевой буфер (один фиг он не используется сейчас).
@@ -245,8 +249,9 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
     // Перебираем все файлы.
     while (1) {
         memset( &this->file_info, 0, sizeof(FILINFO) );        // Чистим имя файла, т.к. новый может оказаться меньше старого, и тогда после символа окончания строки будет еще мусор.
-        result = f_readdir( &this->dir, &this->file_info );    // Читаем, пока файлы не кончатся (символ '0' означает, что файлы закончились). Главное, чтобы с картой все норм было.
-        if ( result != FR_OK ) break;    // Если в процессе чтения произошла ошибка - выходим ни с чем.
+        // Читаем, пока файлы не кончатся (символ '0' означает, что файлы закончились).
+        // Главное, чтобы с картой все норм было.
+        if ( f_readdir( &this->dir, &this->file_info ) != FR_OK ) break;    // Если в процессе чтения произошла ошибка - выходим ни с чем.
         if (this->file_info.fname[0] == 0) {        // Если файлы на карте закончались - выходим.
             break;
         }
@@ -277,15 +282,16 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
         };
     };
 
-    result =  f_close(&this->file);                        // Закрываем list файл.
-    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
-
-    if (result != 0) {    // Если в процессе чтения произошла ошибка - выдаем ее.
+    // Закрываем list файл.
+    if ( f_close(&this->file) != FR_OK ) {    // Если в процессе чтения произошла ошибка - выдаем ее.
+         USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
         return AY_FILE_MODE::OPEN_DIR_ERROR;
-    } else {
-        this->dir_number_file = file_number;    // Сохраняем, чтобы другие методы могли пользоваться.
-        file_number = file_number;
-    };
+    }
+
+    this->dir_number_file = file_number;    // Сохраняем, чтобы другие методы могли пользоваться.
+    file_number = file_number;
+
+    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
     return AY_FILE_MODE::OK;
 }
 
