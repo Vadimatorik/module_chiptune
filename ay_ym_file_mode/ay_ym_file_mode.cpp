@@ -227,16 +227,19 @@ int ay_ym_file_mode::chack_psg_file ( char *p_dot ) {
 
 AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
     file_number = 0;          // Колличество PSG файлов.
-    UINT rw_res = 0;                // Для проверки валидности чтения/записи.
+    UINT rw_res = 0;          // Для проверки валидности чтения/записи.
 
     USER_OS_TAKE_BIN_SEMAPHORE ( *this->cfg->microsd_mutex, portMAX_DELAY ); // Ждем, пока освободится microsd.
 
-    if ( f_opendir(&this->dir, this->dir_path) != FR_OK ) {
+    volatile FRESULT res;
+    res = f_opendir(&this->dir, this->dir_path);
+    if ( res != FR_OK ) {
         USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
         return AY_FILE_MODE::OPEN_DIR_ERROR;
     }
 
-    if ( f_open(&this->file, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK ) {
+    res = f_open(&this->file, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+    if ( res != FR_OK ) {
         USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
         return AY_FILE_MODE::OPEN_FILE_ERROR;
     }
@@ -251,8 +254,9 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
         memset( &this->file_info, 0, sizeof(FILINFO) );        // Чистим имя файла, т.к. новый может оказаться меньше старого, и тогда после символа окончания строки будет еще мусор.
         // Читаем, пока файлы не кончатся (символ '0' означает, что файлы закончились).
         // Главное, чтобы с картой все норм было.
-        if ( f_readdir( &this->dir, &this->file_info ) != FR_OK ) break;    // Если в процессе чтения произошла ошибка - выходим ни с чем.
-        if (this->file_info.fname[0] == 0) {        // Если файлы на карте закончались - выходим.
+        res = f_readdir( &this->dir, &this->file_info );
+        if ( res != FR_OK ) break;    // Если в процессе чтения произошла ошибка - выходим ни с чем.
+        if ( this->file_info.fname[0] == 0 ) {        // Если файлы на карте закончались - выходим.
             break;
         }
         // Если перед нами файл, смотрим по его разрешению, PSG это файл или нет.
