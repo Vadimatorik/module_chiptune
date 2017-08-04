@@ -73,13 +73,19 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     // Вытягиваем первый блок данных.
     uint8_t b[512];
     UINT    l;
-    r =  f_read( &file, b, file_size, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
+    r =  f_read( &file, b, 512, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
     if ( r != FR_OK )
         return EC_AY_FILE_MODE::READ_FILE_ERROR;
 
+    // Проверка наличия стартового байта.
+    uint32_t start_byte;
+    if ( ( b[16] == 0xfe ) | ( b[16] == 0xff ) ) {
+        start_byte = 17;
+    } else {
+        start_byte = 16;
+    }
 
-
-    for ( uint32_t l_p = 16; l_p < file_size; l_p++, p++ ) {
+    for ( uint32_t l_p = start_byte; l_p < file_size; l_p++, p++ ) {
         /*if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
@@ -102,8 +108,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
                 bq.reg = b[p];                                               // Регистр мы просто записываем. Но не отправляем в очередь.
                 flag = 1;
             } else {
-                bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,
-                                                                             // кидаем пачку в очередь.
+                bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
                 this->cfg->ay_hardware->queue_add_element( &bq );
                 flag = 0;
             };
