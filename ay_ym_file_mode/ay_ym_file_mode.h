@@ -19,10 +19,12 @@ struct ay_ym_file_mode_struct_cfg_t {
 
 enum class EC_AY_FILE_MODE {
     OK                      = 0,
-    OPEN_FILE_ERROR         = -1,
-    OPEN_DIR_ERROR          = -2,
-    OPEN_READ_DIR_ERROR      = -3,
-    READ_FILE_ERROR         = -4,
+    ARG_ERROR               = 1,                              // Ошибка входного аргумента ( например, попросили сыграть 2-й файл, когда в папке всего 1 ).
+    WRITE_FILE_ERROR        = 2,
+    OPEN_FILE_ERROR         = 3,
+    OPEN_DIR_ERROR          = 4,
+    OPEN_READ_DIR_ERROR     = 5,
+    READ_FILE_ERROR         = 6,
     END_TRACK               = 255
 };
 
@@ -30,11 +32,12 @@ class ay_ym_file_mode {
 public:
     ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg );
 
+    EC_AY_FILE_MODE        find_psg_file           ( void );    // Производим поиск psg файлов в заранее выбранной директории и составляем список
+
     EC_AY_FILE_MODE        psg_file_play           ( void );                                           // Открываем файл с заданным именем в заданной директори (выбирается заранее).
     void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
-    EC_AY_FILE_MODE        find_psg_file           ( void );           // Производим поиск psg файлов в заранее выбранной директории и составляем список
                                                                     // валидных psg файлов.
-    EC_AY_FILE_MODE        psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );    // Получаем имя и длительность файла.
+    EC_AY_FILE_MODE        psg_file_get_name       ( uint32_t psg_file_number, char* name, uint32_t& time );    // Получаем имя и длительность файла.
 
     // Очищаем чип через очередь.
     void    clear_chip              ( uint8_t chip_number );

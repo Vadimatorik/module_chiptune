@@ -213,14 +213,21 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
 
 // Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
 EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
-    FRESULT r;
-    FIL     file_list;
+    EC_AY_FILE_MODE     func_res        = EC_AY_FILE_MODE::OK;
+    FRESULT             r;
+    FIL                 file_list;
 
     // Создаем файл-список psg файлов.
     // В него будем записывать построчно названия файлов, которые пройдет проверку.
+    if ( this->cfg->microsd_mutex != nullptr ) {
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );    // sdcard занята нами.
+    }
+
     r = f_open( &file_list, "psg_list.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE );
     if ( r != FR_OK ) {
-        USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
+        if ( this->cfg->microsd_mutex != nullptr ) {
+            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
+        }
         return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
     }
 
@@ -234,49 +241,83 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
         uint32_t len;
         EC_AY_FILE_MODE r_psg_get;
         r_psg_get = this->psg_file_get_long( fi.fname, len );           // Проверяем валидность файла.
-        if ( r_psg_get != EC_AY_FILE_MODE::OK ) continue;                  // Если файл бракованный - выходим.
+        if ( r_psg_get != EC_AY_FILE_MODE::OK ) continue;               // Если файл бракованный - выходим.
         // Файл рабочий.
         valid_file_count++;
-        f_printf( &file_list, "%s\n%u\n", fi.fname, len );
-        r = f_findnext( &d, &fi );                                      // Ищем следующий файл.
+        // Для каждого удачного файла - сохранение на 512 байт.
+
+
+        char b[512] = {0};
+        memcpy( fi.fname, b, 256 );                                     // 256 первых - строка имени (255 максимум символов UTF-8) + 0.
+        memcpy( &len, &b[256], 4 );                                     // Далее 4 байта uint32_t - время.
+        UINT l;                                                         // Количество записанных байт (должно быть 512).
+        r = f_write( &file_list, b, 512, &l );
+        if ( l != 512 ) {                                               // Если запись не прошла - аварийный выход.
+            func_res = EC_AY_FILE_MODE::WRITE_FILE_ERROR;
+            break;
+        }
+        // Ищем следующий файл.
+        r_psg_get = this->psg_file_get_long( fi.fname, len );
     }
 
     f_close( &file_list );
     f_closedir( &d );
 
+    if ( this->cfg->microsd_mutex != nullptr ) {
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
+    }
+
     this->file_count = valid_file_count;
 
-    return EC_AY_FILE_MODE::OK;
+    return func_res;
 }
 
-// Получаем имя файла и его длительность по его номеру из отсортированного списка.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, char* buf_name, uint32_t& time ) {
-    (void)psg_file_number;(void)buf_name;(void)time;
-    /*
-    UINT l = 0;                        // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
-    USER_OS_TAKE_BIN_SEMAPHORE( *this->cfg->microsd_mutex, portMAX_DELAY ); // Ждем, пока освободится microsd.
+// Получаем имя файла и его длительность по его номеру из составленного списка.
+EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, char* name, uint32_t& time ) {
+    FRESULT r;
+    EC_AY_FILE_MODE func_res = EC_AY_FILE_MODE::OK;
+    FIL     file_list;
 
-    volatile int res;
-    // Если карта не открылась нормально - отдаем мутекс и выходим.
-    res = f_open(&this->file, "psg_list.list", FA_OPEN_EXISTING | FA_READ );
-    if (res != FR_OK) {
-            USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);
-            return AY_FILE_MODE::OPEN_FILE_ERROR;
-    };
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );     // sdcard занята нами.
 
-    if (f_lseek(&this->file, psg_file_number*(256+4)) == FR_OK) {    // Переходим к нужному файлу.
-        if (f_read(&this->file, buf_name, 256, &l) != FR_OK) {    // Читаем строку.
-            return AY_FILE_MODE::OPEN_READ_DIR_ERROR;
-        };
-        if (f_read(&this->file, &time, 4, &l) != FR_OK) {            // Читаем время.
-            return AY_FILE_MODE::OPEN_READ_DIR_ERROR;
-        };
-    };
+    do {
+        r = f_open( &file_list, name, FA_OPEN_EXISTING | FA_READ );
+        if ( r != FR_OK ) {
+            func_res = EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+            break;
+        }
 
-    f_close(&this->file);            // Закрываем файл.
+        if ( psg_file_number > this->file_count ) {
+            func_res = EC_AY_FILE_MODE::ARG_ERROR;
+            break;
+        }
 
-    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);*/
-    return EC_AY_FILE_MODE::OK;
+        psg_file_number *= 512;                                             // Вычисляем начало сектора с информацией о нашем файле.
+
+        r = f_lseek( &file_list, psg_file_number );                         // Перемещаемся к нужному месту.
+        if ( r != FR_OK ) {
+            func_res = EC_AY_FILE_MODE::READ_FILE_ERROR;
+            break;
+        }
+
+        uint8_t b[512];
+        UINT l;
+        r =  f_read( &file_list, b, 512, &l );
+        if ( ( r != FR_OK ) | ( l != 512 ) ) {
+            func_res = EC_AY_FILE_MODE::READ_FILE_ERROR;
+            break;
+        }
+
+        memcpy( b, name, 256 );
+        memcpy( &b[256], &time, 4 );
+    } while ( false );
+
+    f_close( &file_list );
+    if ( this->cfg->microsd_mutex != nullptr )
+                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
+
+    return func_res;
 }
 /*
 // Моя реализация интеллектуальной сортировки без учета регистра.
