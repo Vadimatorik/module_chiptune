@@ -71,57 +71,6 @@ void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
     }
 }
 
-/*
- * Получаем длину файла PSG в "колличестве 0xFF". По сути, 1 0xFF = 20 мс.
- * Т.к. между ними данные передаются практически мгновенно.
- * Мы должны заранее находится в нужной директории.
- * Передаем указатель на строку-имя файла.
- * Можно напрямую из file_info. Чтобы не тратить время на копирование.
- * ВАЖНО!: метод не следит за mutex-ом MicroSD! => вызываеться данный метод может только из под другого метода,
- * который разрулит все проблемы.
- * ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
- * Как вариант - на момент создания списка - использовать кольцевой буффер.
- */
-AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint8_t* buffer, uint32_t& result_long ) {
-    (void)name;(void)buffer;(void)result_long;
-    /*
-    uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
-    uint32_t    file_psg_long   = 0;     // Длина файла в 0xFF-ах.
-    UINT        l = 0;                   // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
-    uint16_t    p_data_buf = 16;     // А это номер элемента в буффере, с которого идет анализ.
-
-    // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
-    if ( f_open( &this->file, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK ) {
-        return AY_FILE_MODE::OPEN_FILE_ERROR;
-    };
-
-    uint16_t file_size = f_size( &this->file );             // Полный размер файла (всего).
-
-    // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
-    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++ ) {
-        if ( l == 0 ) {                                                                       // Если байты закончались - считываем еще 512.
-            if ( f_read( &this->file, buffer, 512, &l ) != FR_OK ) {       // Если считать не удалось - выходим с ошибкой.
-                return AY_FILE_MODE::READ_FILE_ERROR;
-            };
-            if ( flag_one_read != 0 ) {
-                p_data_buf = 0;
-            } else {
-                p_data_buf = 16;                // Пропускаем заголовок, по-этому, сразу отнимаем.
-                l-=16;
-                flag_one_read = 1;
-            }
-        }
-        if ( buffer[p_data_buf] == 0xFF ) {
-            file_psg_long++;    // Если нашли 0xFF - то это пауза. => 20 мс.
-        }
-        p_data_buf++;
-        l--;
-    };
-
-    f_close( &this->file );            // Закрываем файл.
-    result_long = file_psg_long;*/
-    return AY_FILE_MODE::OK;
-}
 
 
 // Останавливаем трек и чистим буффера.
@@ -204,10 +153,69 @@ AY_FILE_MODE ay_ym_file_mode::psg_file_play ( void ) {
     return AY_FILE_MODE::OK;
 }
 
+
+/*
+ * Получаем длину файла PSG в "колличестве 0xFF". По сути, 1 0xFF = 20 мс.
+ * Т.к. между ними данные передаются практически мгновенно.
+ * Мы должны заранее находится в нужной директории.
+ * Передаем указатель на строку-имя файла.
+ * Можно напрямую из file_info. Чтобы не тратить время на копирование.
+ * ВАЖНО!: метод не следит за mutex-ом MicroSD! => вызываеться данный метод может только из под другого метода,
+ * который разрулит все проблемы.
+ * ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
+ * Как вариант - на момент создания списка - использовать кольцевой буффер.
+ */
+AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& result_long ) {
+    FIL         file_psg;
+
+    // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
+    if ( f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK )
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
+
+                result_long     = 0;
+    uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
+    UINT        l               = 0;     // Ею будем отслеживать опустошение буффера.
+                                         // К тому же, в ней после считывания хранится число реально скопированныйх байт.
+    uint16_t    p               = 16;    // Номер элемента в буффере, с которого идет анализ.
+
+    uint32_t    file_size = f_size( &file_psg );                // Полный размер файла (всего).
+    if ( file_size < 16 ) {                                     // Если помимо заголовка ничего нет - выходим.
+        f_close( &file_psg );
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
+    }
+
+    uint8_t b[512];                                             // Буффер на 512 элементов.
+    // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
+    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++ ) {
+        if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
+            if ( f_read( &file_psg, b, 512, &l ) != FR_OK ) {
+                f_close( &file_psg );
+                return AY_FILE_MODE::READ_FILE_ERROR;
+            };
+            if ( flag_one_read != 0 ) {                         // Если чтение не первое.
+                p = 0;
+            } else {                                            // В случае первого чтения.
+                p = 16;                                         // Пропускаем заголовок, по-этому, сразу отнимаем.
+                l-=16;
+                flag_one_read = 1;
+            }
+        }
+        if ( b[p] == 0xFF ) {
+            result_long++;                                      // Если нашли 0xFF - то это пауза. => 20 мс.
+        }
+        p++;
+        l--;
+    };
+
+    f_close( &file_psg );                                       // Закрываем файл.
+    return AY_FILE_MODE::OK;
+}
+
 // Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
 AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
     FRESULT r;
     FIL     file_list;
+
     // Создаем файл-список psg файлов.
     // В него будем записывать построчно названия файлов, которые пройдет проверку.
     r = f_open( &file_list, "psg_list.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE );
@@ -222,7 +230,12 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
     r = f_findfirst( &d, &fi, "", "*.psg" );                            // Начинаем поиск файлов в заранее выбранной директории.
 
     while ( ( r == FR_OK ) && ( fi.fname[0] != 0 ) ) {                  // Если psg был найден.
-
+        uint32_t len;
+        AY_FILE_MODE r_psg_get;
+        r_psg_get = this->psg_file_get_long( fi.fname, len );           // Проверяем валидность файла.
+        if ( r_psg_get != AY_FILE_MODE::OK ) continue;                  // Если файл бракованный - выходим.
+        // Файл рабочий.
+        f_printf( &file_list, "%s\n%u\n", fi.fname, len );
         r = f_findnext( &d, &fi );                                      // Ищем следующий файл.
     }
 

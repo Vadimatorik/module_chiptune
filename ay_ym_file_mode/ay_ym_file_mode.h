@@ -17,10 +17,6 @@ struct ay_ym_file_mode_struct_cfg_t {
 
 };
 
-/*
- * Такие команды могут прийти в queue_feedback.
- * Ответ int формата.
- */
 enum class AY_FILE_MODE {
     OK                      = 0,
     OPEN_FILE_ERROR         = -1,
@@ -33,10 +29,10 @@ enum class AY_FILE_MODE {
 class ay_ym_file_mode {
 public:
     ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg );
-    void    file_update             ( char* dir, char* name );                                      // Задаем директорию и имя.
+    void                file_update             ( char* dir, char* name );                          // Задаем директорию и имя.
                                                                                                     // Можно передавать только директорию или только имя, если методам ниже иного не нужно.
-    AY_FILE_MODE        psg_file_play           ( void );                                                      // Открываем файл с заданным именем в заданной директори (выбирается заранее).
-    void                psg_file_stop           ( void );                                                       // Останавливакем воспроизведение.
+    AY_FILE_MODE        psg_file_play           ( void );                                           // Открываем файл с заданным именем в заданной директори (выбирается заранее).
+    void                psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
     AY_FILE_MODE        find_psg_file           ( void );           // Производим поиск psg файлов в заранее выбранной директории и составляем список
                                                                     // валидных psg файлов.
     int                 file_sort               ( void );                                                       // Сортируем существующий в директории список.
@@ -49,8 +45,11 @@ public:
 
 private:
     AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
-    AY_FILE_MODE     psg_file_get_long       ( char* name, uint8_t* buffer, uint32_t& result_long );                                                       // Получаем длину файла.
-    int              chack_psg_file ( char *p_dot );
+
+    // Получаем длину файла (если валидный).
+    // Файл должен находится в текущей директории.
+    AY_FILE_MODE    psg_file_get_long ( char* name, uint32_t& result_long );
+
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
     // Очередь через которую производится передача команды задаче обновления буфера.
