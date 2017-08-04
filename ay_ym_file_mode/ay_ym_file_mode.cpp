@@ -1,58 +1,7 @@
 #include "ay_ym_file_mode.h"
 
-ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {
-    // Для отдачи команд задачи обновления кольцевого буффера.
-    this->queue_update        = USER_OS_STATIC_QUEUE_CREATE( 1, sizeof( uint8_t ), this->queue_update_buf, &this->queue_update_st );
-}
+ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {}
 
-// Открываем карту и копируем нужный кусок
-// ( 1 кусок - number_sector * 512 байт, счет с 0 ).
-EC_AY_FILE_MODE ay_ym_file_mode::psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l ) {
-    (void)sektor;(void)point_buffer;(void)number_sector;(void)l;
-  /*  USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );         // Ждем, пока освободится microsd.
-    if ( f_lseek( &this->file, sektor * 512 ) == FR_OK) {                    // Переходим к сектору в файле.
-        // Читаем в кольцевой буфер кусок.
-        if ( f_read( &this->file, &this->cfg->p_circular_buffer[ point_buffer ], 512 * number_sector, l) == FR_OK ) {
-            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );                // Показываем, что карта нам теперь не нужна.
-            return AY_FILE_MODE::OK;
-        };
-    };*/
-    return EC_AY_FILE_MODE::READ_FILE_ERROR;
-}
-
-/*
- * При появлении в очереди элемента - обновляем данные.
- * Имя директории и файла кладется в ay_file_mode_cfg_t заранее.
- * Файл должен быть открыт заранее и закрыт после чтения последнего блока.
- * Предполагается, что все готова для чтения.
- */
-void ay_ym_file_mode::buf_update_task ( void* p_obj ) {
-
-    (void)p_obj;
-    /*
-    ay_ym_file_mode* o = ( ay_ym_file_mode* )p_obj;
-    while ( true ) {
-        uint8_t buffer_queue;
-        uint8_t offset = o->cfg->circular_buffer_size / 512;                    // Сколько секторов за 1 раз следует считать. Зависит от буффера.
-        while ( true ) {
-            USER_OS_QUEUE_RECEIVE( o->queue_update, &buffer_queue, portMAX_DELAY );
-            if ( buffer_queue == 0 ) {                                            // Решаем, какую часть кольцевого буфера сейчас перезаполняем.
-                if ( o->psg_part_copy_from_sd_to_array( o->sektor, 0,                            offset, &o->l) != EC_AY_FILE_MODE::OK )
-                    break;    // Если не считалось (проблемы с картой или еще что - выходим с ошибкой. Все манипуляции с картой внутри метода.
-            } else {        // Пишем с середины кольцевого буфера.
-                if ( o->psg_part_copy_from_sd_to_array( o->sektor, o->cfg->circular_buffer_size, offset, &o->l) != EC_AY_FILE_MODE::OK )
-                    break;
-            }
-            o->sektor += offset;                                                // В следущий раз - другой блок.
-            USER_OS_GIVE_BIN_SEMAPHORE( o->c_buf_semaphore );                    // Буффером можно пользоваться.
-        }
-    }*/
-    while( true ) {
-        vTaskDelay(1000);
-    };
-}
-
-// Очищаем AY через очередь.
 void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
     ay_queue_struct buf;
     buf.number_chip         = chip_number;
@@ -81,79 +30,93 @@ void ay_ym_file_mode::psg_file_stop ( void ) {
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( uint32_t psg_file_number ) {
-    (void)psg_file_number;
-    /*
-    ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
+EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_file_number ) {
+    if ( psg_file_number > this->file_count ) {
+        return EC_AY_FILE_MODE::ARG_ERROR;
+    }
+
+    // Достаем имя файла и его длину из файла-списка.
+    EC_AY_FILE_MODE     func_res;
+    char                name[256];
+    uint32_t            len_i;
+    FRESULT             r;
+    func_res = this->psg_file_get_name( dir_path, psg_file_number, name, len_i );
+    if ( func_res != EC_AY_FILE_MODE::OK )
+        return func_res;
+
+    // Открываем наш psg файл.
+    DIR     d;
+    r = f_opendir( &d, dir_path );
+    if ( r != FR_OK )
+        return EC_AY_FILE_MODE::OPEN_DIR_ERROR;
 
 
-    uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
-    uint16_t            p_data_buf = 16;                // А это номер элемента в буффере, из которого мы будем выдавать данные. Начинаем с 16-го байта, т.к. до него у нас заголовок.
-    uint8_t             cmd_buffer = 0;                 // Сюда будем класть указание, в какую часть буффера класть данные.
-    this->sektor = 0;                                   // Читаем с начала.
-    this->emergency_team = 0;                           // На случай, если тыкнули на остановку до воспроизведения до этого.
+    FIL     file;
+    r = f_open( &file, name, FA_OPEN_EXISTING | FA_READ );
+    if ( r != FR_OK ) {
+        return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+    }
+
+    // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
     this->cfg->ay_hardware->play_set_state( 1 );
     this->clear_chip( 0 );                              // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
-    // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего. Но мы возвращаем, что файл поврежден.
-    if ( f_open( &this->file, this->file_name, FA_OPEN_EXISTING | FA_READ ) != FR_OK ) {        // Открываем файл, из которого будем читать.
-        return AY_FILE_MODE::OPEN_FILE_ERROR;
-    };
 
-    // Заполняем кольцевой буффер.
-    USER_OS_TAKE_BIN_SEMAPHORE( this->c_buf_semaphore, 0 );    // Буффер может быть заполнен другим файлом.
-    cmd_buffer = 0;
-    USER_OS_QUEUE_SEND( this->queue_update_buf, &cmd_buffer, portMAX_DELAY  );               // Просим задачу в другом потоке заполнить буфер.
-    USER_OS_TAKE_BIN_SEMAPHORE( this->c_buf_semaphore, portMAX_DELAY );                     // Ждем, пока она это сделает.
-    cmd_buffer = 1;                                                                          // Так же и со второй частью кольцевого буфера.
-    USER_OS_QUEUE_SEND( this->queue_update_buf, &cmd_buffer, portMAX_DELAY  );
+    ay_queue_struct     bq = { 0, 0, 0 };               // Буффер для одного элемента очереди.
 
-    uint32_t file_size = f_size( &this->file );
+    uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
+    uint16_t            p = 16;                // Номер элемента в буффере, из которого мы будем выдавать данные.
+                                                        // Начинаем с 16-го байта, т.к. до него у нас заголовок.
 
-    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p_data_buf++ ) {
-        if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
+    uint32_t file_size = f_size( &file );
+
+    // Вытягиваем первый блок данных.
+    uint8_t b[512];
+    UINT    l;
+    r =  f_read( &file, b, file_size, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
+    if ( r != FR_OK )
+        return EC_AY_FILE_MODE::READ_FILE_ERROR;
+
+
+
+    for ( uint32_t l_p = 16; l_p < file_size; l_p++, p++ ) {
+        /*if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
                 cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
                 USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
                 return AY_FILE_MODE::OK;                            // Выключаем AY, выдаем в очередь флаг окончания и выходим.
             }
-        };
-        // Смотрим, не закончилась ли часть буффера.
-        if ( p_data_buf == this->cfg->circular_buffer_size ) {
-            USER_OS_TAKE_BIN_SEMAPHORE ( this->c_buf_semaphore, portMAX_DELAY );    // К этому времени у нас уже должена была перезаписаться часть буффера.
-            cmd_buffer = 0;
-            USER_OS_QUEUE_SEND( this->queue_update_buf, ( void * ) &cmd_buffer, portMAX_DELAY  );    // Приказываем перезаписать часть, которую уже выдали.
-        };
-        if (p_data_buf == this->cfg->circular_buffer_size) {
-            USER_OS_TAKE_BIN_SEMAPHORE ( this->c_buf_semaphore, portMAX_DELAY );    // К этому времени у нас уже должена была перезаписаться часть буффера.
-            cmd_buffer = 1;
-            USER_OS_QUEUE_SEND( this->queue_update_buf, ( void * ) &cmd_buffer, portMAX_DELAY  );    // Приказываем перезаписать часть, которую уже выдали.
-            p_data_buf = 0;
-        };
-        if ( this->cfg->p_circular_buffer[p_data_buf] == 0xFF ) {    // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
-            buffer_queue.reg = 0xFF;
-            this->cfg->ay_hardware->queue_add_element( &buffer_queue );
+        };*/
+        if ( p == 512 ) {
+            r =  f_read( &file, b, file_size, &l );
+            if ( r != FR_OK )
+                return EC_AY_FILE_MODE::READ_FILE_ERROR;
+        }
+
+        if ( b[p] == 0xFF ) {                                                // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
+            bq.reg = 0xFF;
+            this->cfg->ay_hardware->queue_add_element( &bq );
         } else {
             if (flag == 0) {
-                buffer_queue.reg = this->cfg->p_circular_buffer[p_data_buf];                      // Регистр мы просто записываем. Но не отправляем в очередь.
+                bq.reg = b[p];                                               // Регистр мы просто записываем. Но не отправляем в очередь.
                 flag = 1;
             } else {
-                buffer_queue.data = this->cfg->p_circular_buffer[p_data_buf];                     // Теперь, когда у нас есть актуальное значение регистра и данных в него, кидаем пачку в очередь.
-                this->cfg->ay_hardware->queue_add_element( &buffer_queue );
+                bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,
+                                                                             // кидаем пачку в очередь.
+                this->cfg->ay_hardware->queue_add_element( &bq );
                 flag = 0;
             };
         };
     };
-    if ( f_close( &this->file ) != FR_OK ) {                    // Все прочитано, закрываем файл.
-        return AY_FILE_MODE::OPEN_FILE_ERROR;                   // Обработка исключительной ситуации.
-    };
-    this->cfg->ay_hardware->play_set_state( 1 );
-   // ay_delay_clean(*this->cfg->fd_ay_hardware);    // Ждем, пока все данные в AY передадутся.
-    this->cfg->ay_hardware->play_set_state( 0 );
 
-    cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
-    USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.*/
+
+    //this->cfg->ay_hardware->play_set_state( 1 );
+   // ay_delay_clean(*this->cfg->fd_ay_hardware);    // Ждем, пока все данные в AY передадутся.
+//    this->cfg->ay_hardware->play_set_state( 0 );
+
+    //cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
+    //USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.*/
     return EC_AY_FILE_MODE::OK;
 }
 
@@ -183,6 +146,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
     uint16_t    p               = 16;    // Номер элемента в буффере, с которого идет анализ.
 
     uint32_t    file_size = f_size( &file_psg );                // Полный размер файла (всего).
+
     if ( file_size < 16 ) {                                     // Если помимо заголовка ничего нет - выходим.
         f_close( &file_psg );
         return EC_AY_FILE_MODE::OPEN_FILE_ERROR;

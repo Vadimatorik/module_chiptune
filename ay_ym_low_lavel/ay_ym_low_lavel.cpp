@@ -50,7 +50,7 @@ void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
  * Задача выполняется из под FreeRTOS.
  */
 void ay_ym_low_lavel::queue_add_element ( ay_queue_struct* item ) const {
-    ay_low_out_data buf;
+    ay_low_out_data_struct buf;
     buf.reg     = item->reg;
     buf.data    = item->data;
 
@@ -129,18 +129,9 @@ uint8_t ay_ym_low_lavel::connection_transformation ( const uint8_t chip, const u
 
 void ay_ym_low_lavel::task ( void* p_this ) {
         ay_ym_low_lavel* obj = ( ay_ym_low_lavel* ) p_this;
-        ay_low_out_data buffer[ obj->cfg->ay_number];     // Буфер для адрес/команда для всех чипов.
-        volatile uint32_t flag;                         // Внутренняя переменная "опустошения очереди". Она будет сравниваться с flag_over (читать подробное описание у этой переменной).
-        obj->hardware_clear();                // Важно очистить чипы полностью без использования очереди.
-        // Костыль для теста!!!
-        ay_low_out_data buf;
-        buf.reg     = 7;
-        buf.data    = 0b11111000;
-        xQueueSend(obj->cfg->p_queue_array[0], &buf, portMAX_DELAY);
-        buf.data    = 0b11111000;
-        xQueueSend(obj->cfg->p_queue_array[1], &buf, portMAX_DELAY);
-
-        vTaskDelay(1000);
+        ay_low_out_data_struct buffer[ obj->cfg->ay_number];     // Буфер для адрес/команда для всех чипов.
+        volatile uint32_t flag;                                  // Внутренняя переменная "опустошения очереди". Она будет сравниваться с flag_over (читать подробное описание у этой переменной).
+        obj->hardware_clear();                                   // Важно очистить чипы полностью без использования очереди.
         USER_OS_GIVE_BIN_SEMAPHORE(obj->semaphore);
         while( true ) {
             flag = 0;            // Предположим, что данные есть во всех очерядях.
@@ -199,7 +190,7 @@ void ay_ym_low_lavel::play_set_state ( uint8_t state ) const {
     if ( state == 1 ){
         //port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 1);
         //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 1);                    // Запускаем генерацию сигнала.
-        for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {         // Возвращаем состояние всех AY.
+        for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {        // Возвращаем состояние всех AY.
              this->cfg->p_sr_data[loop_ay] = this->cfg->r7_reg[loop_ay];
         };
         this->out_data();

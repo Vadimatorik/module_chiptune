@@ -57,10 +57,11 @@ struct ay_ym_low_lavel_cfg_t {
 };
 
 
-struct ay_low_out_data {
+struct ay_low_out_data_struct {
     uint8_t     reg;    // Если сюда положат 0xFF, значит, что нужно больше для конкретного чипа в этом интервале времени посылок нет!
     uint8_t     data;
 };
+
 //int                    *tim_frequency_ay_fd;                // FD таймера, который генерирует необходимую частоту для генерации сигнала (~1.75 МГц по-умолчанию).
 //    int                    *tim_event_ay_fd;                    // FD таймера, вызывающего прерывания (лля вывода данных из очереди в AY/YM).
 
@@ -77,7 +78,7 @@ struct ay_queue_struct {
 // Очердь общая для все чипов!
 class ay_ym_low_lavel {
 public:
-    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {};
+    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {}
     void init ( void );
     void queue_add_element       ( ay_queue_struct* data ) const;
     void play_set_state          ( uint8_t state ) const;
@@ -102,8 +103,6 @@ private:
     // шины данных AY... На тот случай, когда подключение производилось не соответсвующими
     // линиями.
     uint8_t connection_transformation ( const uint8_t chip, const uint8_t& data ) const;
-
-
 
     static void task ( void* p_this );
 

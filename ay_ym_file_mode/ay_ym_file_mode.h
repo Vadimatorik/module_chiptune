@@ -50,14 +50,17 @@ public:
     //**********************************************************************
     EC_AY_FILE_MODE        psg_file_get_name       ( char* dir_path, uint32_t psg_file_number, char* name, uint32_t& time );
 
-    EC_AY_FILE_MODE        psg_file_play           ( uint32_t psg_file_number );     // Открываем файл с заданным именем в заданной директори (выбирается заранее).
+    //**********************************************************************
+    // Воспроизводим psg файл.
+    // Важно! В папке по пути dir_path лолжен существовать файл списка воспроизведения.
+    //**********************************************************************
+    EC_AY_FILE_MODE        psg_file_play           ( char* dir_path, uint32_t psg_file_number );
+
     void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
                                                                     // валидных psg файлов.
 
     // Очищаем чип через очередь.
     void    clear_chip              ( uint8_t chip_number );
-
-    static  void buf_update_task    ( void* p_obj );
 
 private:
     EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
@@ -71,10 +74,7 @@ private:
 
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
-    // Обратная связь с пользователем.
-    uint8_t     queue_update_buf[ sizeof( uint8_t ) ] = { 0 };
-    USER_OS_STATIC_QUEUE_STRUCT     queue_update_st = USER_OS_STATIC_QUEUE_STRUCT_INIT_VALUE;
-    USER_OS_STATIC_QUEUE            queue_update;
+    bool    emergency_team = false;
 };
 
 
