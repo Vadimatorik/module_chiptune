@@ -9,23 +9,18 @@ ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cf
     USER_OS_STATIC_TASK_CREATE( this->buf_update_task, "ay_file", 300, ( void* )this, this->cfg->circular_buffer_task_prio, this->task_stack, &this->task_struct );
 }
 
-// Принимаем указатели на заранее заданные строки пути и имени.
-void ay_ym_file_mode::file_update ( char* dir, char* name ) {
-    if ( dir  != nullptr )  this->dir_path       = dir;
-    if ( name != nullptr )  this->file_name      = name;
-}
-
 // Открываем карту и копируем нужный кусок
 // ( 1 кусок - number_sector * 512 байт, счет с 0 ).
 AY_FILE_MODE ay_ym_file_mode::psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l ) {
-    USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );         // Ждем, пока освободится microsd.
+    (void)sektor;(void)point_buffer;(void)number_sector;(void)l;
+  /*  USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );         // Ждем, пока освободится microsd.
     if ( f_lseek( &this->file, sektor * 512 ) == FR_OK) {                    // Переходим к сектору в файле.
         // Читаем в кольцевой буфер кусок.
         if ( f_read( &this->file, &this->cfg->p_circular_buffer[ point_buffer ], 512 * number_sector, l) == FR_OK ) {
             USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );                // Показываем, что карта нам теперь не нужна.
             return AY_FILE_MODE::OK;
         };
-    };
+    };*/
     return AY_FILE_MODE::READ_FILE_ERROR;
 }
 
@@ -88,6 +83,8 @@ void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
  * Как вариант - на момент создания списка - использовать кольцевой буффер.
  */
 AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint8_t* buffer, uint32_t& result_long ) {
+    (void)name;(void)buffer;(void)result_long;
+    /*
     uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
     uint32_t    file_psg_long   = 0;     // Длина файла в 0xFF-ах.
     UINT        l = 0;                   // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
@@ -122,7 +119,7 @@ AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint8_t* buffer, u
     };
 
     f_close( &this->file );            // Закрываем файл.
-    result_long = file_psg_long;
+    result_long = file_psg_long;*/
     return AY_FILE_MODE::OK;
 }
 
@@ -134,7 +131,7 @@ void ay_ym_file_mode::psg_file_stop ( void ) {
 
 // Открываем файл с выбранным именем и воспроизводим его.
 AY_FILE_MODE ay_ym_file_mode::psg_file_play ( void ) {
-    ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
+  /*  ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
 
 
     uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
@@ -203,29 +200,41 @@ AY_FILE_MODE ay_ym_file_mode::psg_file_play ( void ) {
     this->cfg->ay_hardware->play_set_state( 0 );
 
     cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
-    USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
+    USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.*/
     return AY_FILE_MODE::OK;
 }
 
-// Смотрим на разрешение после точки. Если это psg = 1, нет = 0.
-int ay_ym_file_mode::chack_psg_file ( char *p_dot ) {
-    if (((p_dot[1] == 'p')|(p_dot[1] == 'P')) &&
-        ((p_dot[2] == 's')|(p_dot[2] == 'S')) &&
-        ((p_dot[3] == 'g')|(p_dot[3] == 'G')) &&
-        (p_dot[4] == 0)) {            // В конце обязательно должен быть 0! Защита от мусора.
-        return 1;    // Это psg.
-    };
-    return 0;    // Не psg.
-}
+// Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
+AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
+    FRESULT r;
+    FIL     file_list;
+    // Создаем файл-список psg файлов.
+    // В него будем записывать построчно названия файлов, которые пройдет проверку.
+    r = f_open( &file_list, "psg_list.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE );
+    if ( r != FR_OK ) {
+        USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
+        return AY_FILE_MODE::OPEN_FILE_ERROR;
+    }
 
-/* Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
- * Составляем список psg файлов.
- *         При этом, если файл битый и его длительность нельзя определить - его в список не включаем.
- *        Формат psg_list.list:
- *        |<--255_символов_имени-->\0|<-4_байта_uint32_t_время_в_секундах->|
- */
+    DIR d;
+    FILINFO fi;
 
-AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
+    r = f_findfirst( &d, &fi, "", "*.psg" );                            // Начинаем поиск файлов в заранее выбранной директории.
+
+    while ( ( r == FR_OK ) && ( fi.fname[0] != 0 ) ) {                  // Если psg был найден.
+
+        r = f_findnext( &d, &fi );                                      // Ищем следующий файл.
+    }
+
+    f_close( &file_list );
+    f_closedir( &d );
+
+
+
+
+
+/*
+
     file_number = 0;          // Колличество PSG файлов.
     UINT rw_res = 0;          // Для проверки валидности чтения/записи.
 
@@ -238,11 +247,7 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
         return AY_FILE_MODE::OPEN_DIR_ERROR;
     }
 
-    res = f_open(&this->file, "filename.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
-    if ( res != FR_OK ) {
-        USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
-        return AY_FILE_MODE::OPEN_FILE_ERROR;
-    }
+
 
     // Если все открылось - идем дальше.
     // Будем пользовать кольцевой буфер (один фиг он не используется сейчас).
@@ -295,12 +300,14 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
     this->dir_number_file = file_number;    // Сохраняем, чтобы другие методы могли пользоваться.
     file_number = file_number;
 
-    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
+    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.*/
     return AY_FILE_MODE::OK;
 }
 
 // Получаем имя файла и его длительность по его номеру из отсортированного списка.
 AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, char* buf_name, uint32_t& time ) {
+    (void)psg_file_number;(void)buf_name;(void)time;
+    /*
     UINT l = 0;                        // Ею будем отслеживать опустошение буффера. К тому же, в ней после считывания хранится число реально скопированныйх байт.
     USER_OS_TAKE_BIN_SEMAPHORE( *this->cfg->microsd_mutex, portMAX_DELAY ); // Ждем, пока освободится microsd.
 
@@ -323,7 +330,7 @@ AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, char
 
     f_close(&this->file);            // Закрываем файл.
 
-    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);
+    USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);*/
     return AY_FILE_MODE::OK;
 }
 /*
