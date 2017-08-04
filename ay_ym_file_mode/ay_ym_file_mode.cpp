@@ -3,10 +3,6 @@
 ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {
     // Для отдачи команд задачи обновления кольцевого буффера.
     this->queue_update        = USER_OS_STATIC_QUEUE_CREATE( 1, sizeof( uint8_t ), this->queue_update_buf, &this->queue_update_st );
-    // Задача будет ставить симафор всякий раз, как часть кольцевого буффера была обнавлена.
-    this->c_buf_semaphore     = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->c_buf_semaphore_buf );
-    // Задача обновления кольцевого буффера.
-    USER_OS_STATIC_TASK_CREATE( this->buf_update_task, "ay_file", 300, ( void* )this, this->cfg->circular_buffer_task_prio, this->task_stack, &this->task_struct );
 }
 
 // Открываем карту и копируем нужный кусок
@@ -87,7 +83,8 @@ void ay_ym_file_mode::psg_file_stop ( void ) {
 // Открываем файл с выбранным именем и воспроизводим его.
 EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( uint32_t psg_file_number ) {
     (void)psg_file_number;
-  /*  ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
+    /*
+    ay_queue_struct     buffer_queue = { 0, 0, 0 };     // Буффер для элемента, который положем в очередь.
 
 
     uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.

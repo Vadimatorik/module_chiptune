@@ -11,10 +11,6 @@ struct ay_ym_file_mode_struct_cfg_t {
                                                                // Может быть nullptr, если картой никто не пользуется.
     USER_OS_STATIC_QUEUE*       queue_feedback;                // Для того, чтобы уведомить о каком-либо событии какой-либо поток. Например, что произошла остановка плеера.
                                                                // Очередь под uint8_t переменную. Достаточно одного элемента.
-    const uint8_t               circular_buffer_task_prio;     // Приоритет задачи для обновления кольцевого буффера.
-    uint16_t                    circular_buffer_size;          // Размер половины кольцевого буффера (должен быть кратен 512 байт).
-    uint8_t*                    p_circular_buffer;             // Кольцевой буффер. Размер circular_buffer_size * 2. Выделяется пользователем заранее.
-
 };
 
 enum class EC_AY_FILE_MODE {
@@ -75,18 +71,10 @@ private:
 
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
-    // Очередь через которую производится передача команды задаче обновления буфера.
+    // Обратная связь с пользователем.
     uint8_t     queue_update_buf[ sizeof( uint8_t ) ] = { 0 };
     USER_OS_STATIC_QUEUE_STRUCT     queue_update_st = USER_OS_STATIC_QUEUE_STRUCT_INIT_VALUE;
     USER_OS_STATIC_QUEUE            queue_update;
-
-    // Симафор показывает, что мы можем пользоваться буффером, т.к. его уже заполнили.
-    USER_OS_STATIC_BIN_SEMAPHORE_BUFFER c_buf_semaphore_buf = USER_OS_STATIC_BIN_SEMAPHORE_BUFFER_INIT_VALUE;
-    USER_OS_STATIC_BIN_SEMAPHORE        c_buf_semaphore     = nullptr;
-
-    // Задача обработки кольцевого буфера.
-    USER_OS_STATIC_STACK_TYPE           task_stack[300] = { 0 };
-    USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct   = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
 };
 
 
