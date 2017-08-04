@@ -248,16 +248,28 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( void ) {
 
 
         char b[512] = {0};
-        memcpy( fi.fname, b, 256 );                                     // 256 первых - строка имени (255 максимум символов UTF-8) + 0.
-        memcpy( &len, &b[256], 4 );                                     // Далее 4 байта uint32_t - время.
+
+        // Имя может быть длинным или коротким.
+        if ( fi.fname[0] == 0 ) {
+            memcpy( b, fi.altname, 13 );                                // 256 первых - строка имени (255 максимум символов UTF-8) + 0.
+        } else {
+            memcpy( b, fi.fname, 256 );
+        }
+
+        memcpy( &b[256], &len, 4 );                                     // Далее 4 байта uint32_t - время.
         UINT l;                                                         // Количество записанных байт (должно быть 512).
         r = f_write( &file_list, b, 512, &l );
+        if ( r != FR_OK ) {
+            func_res = EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+            break;
+        }
+
         if ( l != 512 ) {                                               // Если запись не прошла - аварийный выход.
             func_res = EC_AY_FILE_MODE::WRITE_FILE_ERROR;
             break;
         }
         // Ищем следующий файл.
-        r_psg_get = this->psg_file_get_long( fi.fname, len );
+        r = f_findnext( &d, &fi );
     }
 
     f_close( &file_list );
@@ -282,7 +294,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, c
         USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );     // sdcard занята нами.
 
     do {
-        r = f_open( &file_list, name, FA_OPEN_EXISTING | FA_READ );
+        r = f_open( &file_list, "psg_list.txt", FA_OPEN_EXISTING | FA_READ );
         if ( r != FR_OK ) {
             func_res = EC_AY_FILE_MODE::OPEN_FILE_ERROR;
             break;
@@ -309,8 +321,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( uint32_t psg_file_number, c
             break;
         }
 
-        memcpy( b, name, 256 );
-        memcpy( &b[256], &time, 4 );
+        memcpy( name, b, 256 );
+        memcpy( &time, &b[256], 4 );
     } while ( false );
 
     f_close( &file_list );
