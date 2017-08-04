@@ -17,7 +17,7 @@ struct ay_ym_file_mode_struct_cfg_t {
 
 };
 
-enum class AY_FILE_MODE {
+enum class EC_AY_FILE_MODE {
     OK                      = 0,
     OPEN_FILE_ERROR         = -1,
     OPEN_DIR_ERROR          = -2,
@@ -29,14 +29,12 @@ enum class AY_FILE_MODE {
 class ay_ym_file_mode {
 public:
     ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg );
-    void                file_update             ( char* dir, char* name );                          // Задаем директорию и имя.
-                                                                                                    // Можно передавать только директорию или только имя, если методам ниже иного не нужно.
-    AY_FILE_MODE        psg_file_play           ( void );                                           // Открываем файл с заданным именем в заданной директори (выбирается заранее).
-    void                psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
-    AY_FILE_MODE        find_psg_file           ( void );           // Производим поиск psg файлов в заранее выбранной директории и составляем список
+
+    EC_AY_FILE_MODE        psg_file_play           ( void );                                           // Открываем файл с заданным именем в заданной директори (выбирается заранее).
+    void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
+    EC_AY_FILE_MODE        find_psg_file           ( void );           // Производим поиск psg файлов в заранее выбранной директории и составляем список
                                                                     // валидных psg файлов.
-    int                 file_sort               ( void );                                                       // Сортируем существующий в директории список.
-    AY_FILE_MODE                 psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );    // Получаем имя и длительность файла.
+    EC_AY_FILE_MODE        psg_file_get_name       ( uint32_t psg_file_number, char* buf_name, uint32_t& time );    // Получаем имя и длительность файла.
 
     // Очищаем чип через очередь.
     void    clear_chip              ( uint8_t chip_number );
@@ -44,11 +42,14 @@ public:
     static  void buf_update_task    ( void* p_obj );
 
 private:
-    AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
+    EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
 
     // Получаем длину файла (если валидный).
     // Файл должен находится в текущей директории.
-    AY_FILE_MODE    psg_file_get_long ( char* name, uint32_t& result_long );
+    EC_AY_FILE_MODE    psg_file_get_long ( char* name, uint32_t& result_long );
+
+    // Количество файлов в текущей директории.
+    uint32_t           file_count;
 
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
@@ -64,10 +65,6 @@ private:
     // Для создания задачи обновления кольцевого буфера.
     USER_OS_STATIC_STACK_TYPE           task_stack[300] = { 0 };
     USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct   = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
-
-
-    char        dir_play_file_path[256 + 2];     // Директория, где лежит файл для воспроизведения.
-    char        play_file_name[256];             // Его имя.
 
     uint32_t    sektor;                 // Сектор, который следует считать в следущий раз.
 
