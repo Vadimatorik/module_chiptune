@@ -238,7 +238,7 @@ AY_FILE_MODE ay_ym_file_mode::find_psg_file ( uint32_t& file_number ) {
         return AY_FILE_MODE::OPEN_DIR_ERROR;
     }
 
-    res = f_open(&this->file, "psg_list.list", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+    res = f_open(&this->file, "filename.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
     if ( res != FR_OK ) {
         USER_OS_GIVE_BIN_SEMAPHORE(*this->cfg->microsd_mutex);    // sdcard свободна.
         return AY_FILE_MODE::OPEN_FILE_ERROR;
