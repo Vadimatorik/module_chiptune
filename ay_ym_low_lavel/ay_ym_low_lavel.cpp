@@ -40,6 +40,7 @@ void ay_ym_low_lavel::out_data ( void ) const {
  */
 
 void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
+    this->cfg->tim_interrupt_task->clear_interrupt_flag();
     static USER_OS_PRIO_TASK_WOKEN     prio;
     USER_OS_GIVE_BIN_SEMAPHORE_FROM_ISR( this->semaphore, &prio );    // Отдаем симафор и выходим (этим мы разблокируем поток, который выдает в чипы данные).
 }
@@ -132,10 +133,9 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         ay_low_out_data_struct buffer[ obj->cfg->ay_number];     // Буфер для адрес/команда для всех чипов.
         volatile uint32_t flag;                                  // Внутренняя переменная "опустошения очереди". Она будет сравниваться с flag_over (читать подробное описание у этой переменной).
         obj->hardware_clear();                                   // Важно очистить чипы полностью без использования очереди.
-        USER_OS_GIVE_BIN_SEMAPHORE(obj->semaphore);
         while( true ) {
-            flag = 0;            // Предположим, что данные есть во всех очерядях.
-            USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
+            flag = 0;                                            // Предположим, что данные есть во всех очерядях.
+            USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );      // Как только произошло прерывание (была разблокировка из ay_timer_handler).
                 while (flag != (0xFFFFFFFF >>(32- obj->cfg->ay_number)) ) {    // Выдаем данные, пока все очереди не освободятся.]
                     /*
                      * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).
@@ -167,18 +167,17 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                         obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
                     }
                     obj->out_data();
-
-                    /*
-                     * В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
-                     */
-                    obj->tic_ff++;
-                    if ( obj->tic_ff == 50 ) {        // Если насчитали секунду.
-                        obj->tic_ff = 0;
-                        if ( obj->cfg->semaphore_sec_out != nullptr ) {    // Если есть соединение семофором, то отдать его.
-                             xSemaphoreGive( *obj->cfg->semaphore_sec_out );
-                        };
-                    };
                 }
+                /*
+                 * В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
+                 */
+                obj->tic_ff++;
+                if ( obj->tic_ff == 50 ) {        // Если насчитали секунду.
+                    obj->tic_ff = 0;
+                    if ( obj->cfg->semaphore_sec_out != nullptr ) {    // Если есть соединение семофором, то отдать его.
+                         xSemaphoreGive( *obj->cfg->semaphore_sec_out );
+                    };
+                };
     }
 }
 
@@ -189,13 +188,13 @@ void ay_ym_low_lavel::play_set_state ( uint8_t state ) const {
 
     if ( state == 1 ){
         this->cfg->tim_frequency_ay->on();
-        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 1);                    // Запускаем генерацию сигнала.
+        this->cfg->tim_interrupt_task->on();
         for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {        // Возвращаем состояние всех AY.
              this->cfg->p_sr_data[loop_ay] = this->cfg->r7_reg[loop_ay];
         };
         this->out_data();
     } else {
-        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 0);
+        this->cfg->tim_interrupt_task->off();
         this->cfg->tim_frequency_ay->off();
         memset( this->cfg->p_sr_data, 0b111111,  this->cfg->ay_number );
         this->out_data();

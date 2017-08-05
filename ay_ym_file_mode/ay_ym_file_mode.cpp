@@ -64,8 +64,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
 
     ay_queue_struct     bq = { 0, 0, 0 };               // Буффер для одного элемента очереди.
 
-    uint8_t             flag = 0;                       // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
-    uint16_t            p = 16;                // Номер элемента в буффере, из которого мы будем выдавать данные.
+    bool                flag = false;                   // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
+    volatile uint32_t   p = 16;                         // Номер элемента в буффере, из которого мы будем выдавать данные.
                                                         // Начинаем с 16-го байта, т.к. до него у нас заголовок.
 
     uint32_t file_size = f_size( &file );
@@ -78,14 +78,13 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
         return EC_AY_FILE_MODE::READ_FILE_ERROR;
 
     // Проверка наличия стартового байта.
-    uint32_t start_byte;
     if ( ( b[16] == 0xfe ) | ( b[16] == 0xff ) ) {
-        start_byte = 17;
+        p = 17;
     } else {
-        start_byte = 16;
+        p = 16;
     }
 
-    for ( uint32_t l_p = start_byte; l_p < file_size; l_p++, p++ ) {
+    for ( uint32_t l_p = p; l_p < file_size; l_p++, p++ ) {
         /*if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
@@ -95,24 +94,26 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
             }
         };*/
         if ( p == 512 ) {
-            r =  f_read( &file, b, file_size, &l );
+            r =  f_read( &file, b, 512, &l );
             if ( r != FR_OK )
                 return EC_AY_FILE_MODE::READ_FILE_ERROR;
+            p = 0;
         }
 
-        if ( b[p] == 0xFF ) {                                                // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
-            bq.reg = 0xFF;
-            this->cfg->ay_hardware->queue_add_element( &bq );
-        } else {
-            if (flag == 0) {
-                bq.reg = b[p];                                               // Регистр мы просто записываем. Но не отправляем в очередь.
-                flag = 1;
-            } else {
-                bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
+        if ( flag == false ) {
+            if ( b[p] == 0xFF ) {                                                // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
+                bq.reg = 0xFF;
                 this->cfg->ay_hardware->queue_add_element( &bq );
-                flag = 0;
-            };
+            } else {
+                bq.reg = b[p];                                               // Регистр мы просто записываем. Но не отправляем в очередь.
+                flag = true;
+            }
+        } else {
+            bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
+            this->cfg->ay_hardware->queue_add_element( &bq );
+            flag = false;
         };
+
     };
 
 

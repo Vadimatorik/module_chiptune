@@ -58,6 +58,7 @@ struct ay_ym_low_lavel_cfg_t {
 
     tim_comp_one_channel_base*      const tim_frequency_ay;     // Таймер, который генерирует необходимую частоту для генерации сигнала чипов (соединение в параллель) (~1.75 МГц по-умолчанию).
                                                                 // Должен быть заранее инициализирован.
+    tim_interrupt_base*             const tim_interrupt_task;   // Таймер, который генерирует прерывания для ay_low_lavel.
 };
 
 
@@ -65,9 +66,6 @@ struct ay_low_out_data_struct {
     uint8_t     reg;    // Если сюда положат 0xFF, значит, что нужно больше для конкретного чипа в этом интервале времени посылок нет!
     uint8_t     data;
 };
-
-//int
-//    int                    *tim_event_ay_fd;                    // FD таймера, вызывающего прерывания (лля вывода данных из очереди в AY/YM).
 
 /*
  * Очередь элементов для выдачи в AY.
@@ -87,14 +85,18 @@ public:
     void queue_add_element       ( ay_queue_struct* data ) const;
     void play_set_state          ( uint8_t state ) const;
 
+    // Данный handler с fd ранее созданного объекта должен
+    // быть вызван в прерывании по переполнению таймера, генерирующего прерывания раз в 50 мс
+    // (частота может быть изменена другими методами, в зависимости от конфигурации воспроизведения).
+    void timer_interrupt_handler ( void ) const;
+
 private:
     const ay_ym_low_lavel_cfg_t* const cfg;
 
     void out_reg    ( void ) const;
     void out_data   ( void ) const;
 
-    // Данный handler с fd ранее созданного объекта должен быть вызван в прерывании по переполнению таймера, генерирующего прерывания раз в 50 мс (частота может быть изменена другими методами, но по-умолчанию 50 мс).
-    void timer_interrupt_handler ( void ) const;
+
 
     // Включить/выключить 1 канал одного из чипов. Через очередь.
     void set_channel             ( uint8_t number_ay, uint8_t channel, bool set ) const;
