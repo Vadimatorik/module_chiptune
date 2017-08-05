@@ -77,19 +77,22 @@ struct ay_queue_struct {
     uint8_t     data;
 };
 
+#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE             100
+
 // Очередь должна быть как минимум 1 элемент (в идеале - по 16*2 b и более для каждого чипа).
 // Очердь общая для все чипов!
 class ay_ym_low_lavel {
 public:
     ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg );
 
+    // Добавляет элемент в очередь. Элемент будет выдан в АУ во время прерывания.
     void queue_add_element       ( ay_queue_struct* data ) const;
 
     // Метод для приостановки воспроизвдеения и последущего возобновления с того же места.
     void play_state_set          ( uint8_t state ) const;
 
     // Данный handler должен
-    // быть вызван в прерывании по переполнению таймера, генерирующего прерывания раз в 50 мс
+    // быть вызван в прерывании по прохождении 50 мс
     // (частота может быть изменена другими методами, в зависимости от конфигурации воспроизведения).
     void timer_interrupt_handler ( void ) const;
 
@@ -134,8 +137,8 @@ private:
     /*
      * Для создания задачи.
      */
-    mutable USER_OS_STATIC_STACK_TYPE           task_stack[300] = { 0 };
-    mutable USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct   = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
+    mutable USER_OS_STATIC_STACK_TYPE           task_stack[ AY_YM_LOW_LAVEL_TASK_STACK_SIZE ] = { 0 };
+    mutable USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
 
     /*
      * Далее все сделано так, чтобы можно было поддерживать до 32 AY/YM чипов.

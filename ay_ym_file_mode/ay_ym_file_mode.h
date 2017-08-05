@@ -57,8 +57,7 @@ public:
     void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
                                                                     // валидных psg файлов.
 
-    // Очищаем чип через очередь.
-    void    clear_chip              ( uint8_t chip_number );
+
 
 private:
     EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
@@ -69,6 +68,9 @@ private:
 
     // Ждем, пока все данные из очереди ay низкого уровня будут переданы (файл будет воиспроизведен до конца).
     void               ay_delay_ay_low_queue_clean ( void );
+
+    // Очищаем чип через очередь.
+    void    clear_chip              ( uint8_t chip_number );
 
     // Количество файлов в текущей директории.
     uint32_t           file_count;
