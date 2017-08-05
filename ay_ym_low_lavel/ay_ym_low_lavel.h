@@ -3,6 +3,7 @@
 #include "errno.h"
 #include "stm32_f20x_f21x_include_module_lib.h"
 #include "module_shift_register.h"
+#include "mk_hardware_interfaces_timer.h"                   // Таймеры.
 #include "string.h"
 
 // Данная структура показывает, как подключен чип AY к сдвиговому регистру.
@@ -53,7 +54,10 @@ struct ay_ym_low_lavel_cfg_t {
     const ay_ym_connection_chip_cfg_t* con_cfg;             // Способ подключения каждого чипа.
     const uint8_t                   task_prio;              // Приоритет задачи-обработчика данных из очереди.
 
-    uint8_t*                        const  r7_reg;          // Текущее состояние управляющего регистра r7 каждого чипа (массив по количеству чипов).
+    uint8_t*                        const r7_reg;               // Текущее состояние управляющего регистра r7 каждого чипа (массив по количеству чипов).
+
+    tim_comp_one_channel_base*      const tim_frequency_ay;     // Таймер, который генерирует необходимую частоту для генерации сигнала чипов (соединение в параллель) (~1.75 МГц по-умолчанию).
+                                                                // Должен быть заранее инициализирован.
 };
 
 
@@ -62,7 +66,7 @@ struct ay_low_out_data_struct {
     uint8_t     data;
 };
 
-//int                    *tim_frequency_ay_fd;                // FD таймера, который генерирует необходимую частоту для генерации сигнала (~1.75 МГц по-умолчанию).
+//int
 //    int                    *tim_event_ay_fd;                    // FD таймера, вызывающего прерывания (лля вывода данных из очереди в AY/YM).
 
 /*

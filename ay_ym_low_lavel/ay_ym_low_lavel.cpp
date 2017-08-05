@@ -1,7 +1,7 @@
 #include "ay_ym_low_lavel.h"
 
 void ay_ym_low_lavel::init ( void ) {
-    this->semaphore     = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
+    this->semaphore = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
     memset( this->cfg->r7_reg, 0b111111,  this->cfg->ay_number );         // Все чипы отключены.
     USER_OS_STATIC_TASK_CREATE( this->task, "ay_low", 300, ( void* )this, this->cfg->task_prio, this->task_stack, &this->task_struct );
 }
@@ -188,15 +188,15 @@ void ay_ym_low_lavel::play_set_state ( uint8_t state ) const {
     this->out_reg();
 
     if ( state == 1 ){
-        //port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 1);
+        this->cfg->tim_frequency_ay->on();
         //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 1);                    // Запускаем генерацию сигнала.
         for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {        // Возвращаем состояние всех AY.
              this->cfg->p_sr_data[loop_ay] = this->cfg->r7_reg[loop_ay];
         };
         this->out_data();
     } else {
-        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 0);    // Останавливаем генерацию сигнала.
-        //port_timer_set_stait(* this->cfg->tim_frequency_ay_fd, 0);
+        //port_timer_set_stait(* this->cfg->tim_event_ay_fd, 0);
+        this->cfg->tim_frequency_ay->off();
         memset( this->cfg->p_sr_data, 0b111111,  this->cfg->ay_number );
         this->out_data();
     };
