@@ -1,6 +1,6 @@
 #include "ay_ym_low_lavel.h"
 
-void ay_ym_low_lavel::init ( void ) {
+ay_ym_low_lavel::ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {
     this->semaphore = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
     memset( this->cfg->r7_reg, 0b111111,  this->cfg->ay_number );         // Все чипы отключены.
     USER_OS_STATIC_TASK_CREATE( this->task, "ay_low", 300, ( void* )this, this->cfg->task_prio, this->task_stack, &this->task_struct );

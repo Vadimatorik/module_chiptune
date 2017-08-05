@@ -81,9 +81,11 @@ struct ay_queue_struct {
 // Очердь общая для все чипов!
 class ay_ym_low_lavel {
 public:
-    constexpr ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {}
-    void init ( void );
+    ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg );
+
     void queue_add_element       ( ay_queue_struct* data ) const;
+
+    // Метод для приостановки воспроизвдеения и последущего возобновления с того же места.
     void play_state_set          ( uint8_t state ) const;
 
     // Данный handler должен

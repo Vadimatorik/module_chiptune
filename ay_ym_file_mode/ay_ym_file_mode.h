@@ -9,9 +9,7 @@ struct ay_ym_file_mode_struct_cfg_t {
     ay_ym_low_lavel*            ay_hardware;
     USER_OS_STATIC_MUTEX*       microsd_mutex;                 // Для эксклюзивного доступа к microsd (создается пользователем заранее).
                                                                // Может быть nullptr, если картой никто не пользуется.
-    USER_OS_STATIC_QUEUE*       queue_feedback;                // Для того, чтобы уведомить о каком-либо событии какой-либо поток. Например, что произошла остановка плеера.
-                                                               // Очередь под uint8_t переменную. Достаточно одного элемента.
-};
+  };
 
 enum class EC_AY_FILE_MODE {
     OK                      = 0,
@@ -21,7 +19,6 @@ enum class EC_AY_FILE_MODE {
     OPEN_DIR_ERROR          = 4,
     OPEN_READ_DIR_ERROR     = 5,
     READ_FILE_ERROR         = 6,
-    END_TRACK               = 255
 };
 
 class ay_ym_file_mode {

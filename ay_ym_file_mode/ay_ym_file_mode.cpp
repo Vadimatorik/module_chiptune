@@ -93,14 +93,12 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     }
 
     for ( uint32_t l_p = p; l_p < file_size; l_p++, p++ ) {
-        /*if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
+        if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
-                cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
-                USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.
-                return AY_FILE_MODE::OK;                            // Выключаем AY, выдаем в очередь флаг окончания и выходим.
+                return EC_AY_FILE_MODE::OK;
             }
-        };*/
+        };
         if ( p == 512 ) {
             r =  f_read( &file, b, 512, &l );
             if ( r != FR_OK )
@@ -127,9 +125,6 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
     this->cfg->ay_hardware->play_state_set( 0 );
 
-
-    //cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
-    //USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.*/
     return EC_AY_FILE_MODE::OK;
 }
 
