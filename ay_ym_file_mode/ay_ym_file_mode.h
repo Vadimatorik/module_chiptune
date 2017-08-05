@@ -69,6 +69,9 @@ private:
     // Файл должен находится в текущей директории.
     EC_AY_FILE_MODE    psg_file_get_long ( char* name, uint32_t& result_long );
 
+    // Ждем, пока все данные из очереди ay низкого уровня будут переданы (файл будет воиспроизведен до конца).
+    void               ay_delay_ay_low_queue_clean ( void );
+
     // Количество файлов в текущей директории.
     uint32_t           file_count;
 

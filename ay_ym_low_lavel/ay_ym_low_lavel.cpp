@@ -45,6 +45,15 @@ void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
     USER_OS_GIVE_BIN_SEMAPHORE_FROM_ISR( this->semaphore, &prio );    // Отдаем симафор и выходим (этим мы разблокируем поток, который выдает в чипы данные).
 }
 
+bool ay_ym_low_lavel::queue_empty_check ( void ) {
+    for (int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++) {
+        if ( uxQueueMessagesWaiting( this->cfg->queue_array[ chip_loop ] ) != 0 ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /*
  * Запихиваем в очередь на выдачу в AY из массива данные.
  * Данные должны быть расположены в формате регистр(16-8 бит)|значение(7-0 бит).
@@ -55,7 +64,7 @@ void ay_ym_low_lavel::queue_add_element ( ay_queue_struct* item ) const {
     buf.reg     = item->reg;
     buf.data    = item->data;
 
-    xQueueSend( this->cfg->p_queue_array[item->number_chip], &buf, portMAX_DELAY );
+    xQueueSend( this->cfg->queue_array[item->number_chip], &buf, portMAX_DELAY );
 }
 
 // Включить/выключить 1 канал одного из чипов. Через очередь.
@@ -141,9 +150,9 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                      * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).
                      */
                     for ( volatile uint8_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {    // Собираем регистр/данные со всех очередей всех чипов.
-                        volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->p_queue_array[chip_loop]);
+                        volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->queue_array[chip_loop]);
                         if ( count != 0 ) {    // Если для этого чипа очередь не пуста.
-                                xQueueReceive(obj->cfg->p_queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
+                                xQueueReceive(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
                                 if ( buffer[chip_loop].reg == 0xFF ){    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
                                     flag |= 1<<chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
                                 } else {    // Если пришли реальные данные.
@@ -182,7 +191,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
 }
 
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
-void ay_ym_low_lavel::play_set_state ( uint8_t state ) const {
+void ay_ym_low_lavel::play_state_set ( uint8_t state ) const {
     memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );         // В любом случае писать будем в R7.
     this->out_reg();
 

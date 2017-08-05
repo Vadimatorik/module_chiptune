@@ -29,6 +29,14 @@ void ay_ym_file_mode::psg_file_stop ( void ) {
   //  this->emergency_team = 1; // ay_psg_file_play_from_microSD сканирует эту переменную.
 }
 
+// Ждем, пока все данные из очереди будут переданы.
+void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
+    while( this->cfg->ay_hardware->queue_empty_check() != true ) {           // Ждем, пока AY освободится.
+        vTaskDelay(20);
+    }
+}
+
+
 // Открываем файл с выбранным именем и воспроизводим его.
 EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_file_number ) {
     if ( psg_file_number > this->file_count ) {
@@ -58,7 +66,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     }
 
     // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
-    this->cfg->ay_hardware->play_set_state( 1 );
+    this->cfg->ay_hardware->play_state_set( 1 );
     this->clear_chip( 0 );                              // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
 
@@ -116,10 +124,9 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
 
     };
 
+    this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
+    this->cfg->ay_hardware->play_state_set( 0 );
 
-    //this->cfg->ay_hardware->play_set_state( 1 );
-   // ay_delay_clean(*this->cfg->fd_ay_hardware);    // Ждем, пока все данные в AY передадутся.
-//    this->cfg->ay_hardware->play_set_state( 0 );
 
     //cmd_buffer = (uint8_t)AY_FILE_MODE::END_TRACK;
     //USER_OS_QUEUE_SEND( *this->cfg->queue_feedback, &cmd_buffer, portMAX_DELAY  ); // Сообщаем, что трек закончен.*/
