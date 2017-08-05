@@ -4,6 +4,7 @@
 #include "stm32_f20x_f21x_include_module_lib.h"
 #include "module_shift_register.h"
 #include "mk_hardware_interfaces_timer.h"                   // Таймеры.
+#include "mk_hardware_interfaces_pin.h"
 #include "string.h"
 
 // Данная структура показывает, как подключен чип AY к сдвиговому регистру.
@@ -42,8 +43,8 @@ struct ay_ym_low_lavel_cfg_t {
 
     // Выводы управления AY должны быть указаны обязательно (включение всех AY - параллельное).
     // Выводы должны быть указано явно.
-    const pin*                      const bdir;              // Выводы управления AY чипами (чипы включать в параллель).
-    const pin*                      const bc1;
+    const pin_base*                 const bdir;              // Выводы управления AY чипами (чипы включать в параллель).
+    const pin_base*                 const bc1;
 
     //
     // Для каждого AY своя очередь.
