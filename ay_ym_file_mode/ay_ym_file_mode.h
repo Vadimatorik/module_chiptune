@@ -53,6 +53,7 @@ public:
     //**********************************************************************
     EC_AY_FILE_MODE        psg_file_play           ( char* dir_path, uint32_t psg_file_number );
 
+    // Завершает psg_file_play из другого потока.
     void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
                                                                     // валидных psg файлов.
 

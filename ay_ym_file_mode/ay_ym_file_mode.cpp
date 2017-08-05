@@ -24,9 +24,10 @@ void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
 
 
 
-// Останавливаем трек и чистим буффера.
+// Останавливаем трек и чистим буфер
+// (завершает метод psg_file_play из другого потока).
 void ay_ym_file_mode::psg_file_stop ( void ) {
-  //  this->emergency_team = 1; // ay_psg_file_play_from_microSD сканирует эту переменную.
+    this->emergency_team = 1;
 }
 
 // Ждем, пока все данные из очереди будут переданы.
@@ -327,64 +328,3 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( char* dir_path, uint32_t ps
 
     return func_res;
 }
-/*
-// Моя реализация интеллектуальной сортировки без учета регистра.
-int _intelligent_sorting (char *string1, char *string2) {
-    char char_1, char_2;        // Буфферы для сравнения.
-    int result = 0;                // -1 - 0-я меньше; 0 - равны; 1 - s2 больше.
-    for (int loop_char = 0; loop_char < 256; loop_char++) { // Проходимся по всем символам строки.
-        if ((uint8_t)string1[loop_char] == 0) { result = -1; return result;};
-        if ((uint8_t)string2[loop_char] == 0) { result = 1; return result;};
-        if (((uint8_t)string1[loop_char] >= (uint8_t)'A') && ((uint8_t)string1[loop_char] <= (uint8_t)'Z')) {    // Если буква большая.
-            char_1 = (char)((uint8_t)string1[loop_char] + (uint8_t)('a'-'A'));        // Делаем из большей малую.
-        } else char_1 = string1[loop_char];
-        if (((uint8_t)string2[loop_char] >= (uint8_t)'A') && ((uint8_t)string2[loop_char] <= (uint8_t)'Z')) {    // Если буква большая.
-            char_2 = (char)((uint8_t)string2[loop_char] + (uint8_t)('a'-'A'));        // Делаем из большей малую.
-        } else char_2 = string2[loop_char];
-        if ((uint8_t)char_1 < (uint8_t)char_2) {
-            result = -1;
-            return result;
-        } else if ((uint8_t)char_1 > (uint8_t)char_2) {
-            result = 1;
-            return result;
-        };
-    };
-    return result;
-}*/
-/*
-// Сортируем уже существующий список.
-int ay_file_sort (int fd) {
-    ay_file_mode_cfg_t *ay = eflib_getInstanceByFd (fd);
-    UINT wr_status;
-    uint8_t flag;     // Флаг указывает, какое из 2-х имен в буффере мы записали в microsd и его можно заменить новым.
-    FIL this->file;                // Для записи в list_psg.
-    if (f_open(&this->file, "psg_list.list", FA_OPEN_EXISTING | FA_READ | FA_WRITE) != FR_OK) {
-        return OPEN_FILE_ERROR;
-    };
-
-    for (uint32_t loop = 0; loop<o->dir_number_file; loop++) { // Проходимся по n файлам n-1 раз.
-        if (f_lseek(&this->file, 0) != FR_OK) {return READ_FILE_ERROR;};
-        while (f_read(&this->file, o->psg_file_buf, 256 + 4, &wr_status) != FR_OK) {};    // Копируем только имя + время.
-        flag = 1;
-        for (uint32_t file_loop = 1; file_loop < o->dir_number_file; file_loop++) { //Считываем n-1 файлов в пары. После каждой итерации 1 файл записывается заменяя старый.
-            if (f_lseek(&this->file, file_loop*(256+4)) != FR_OK) {return READ_FILE_ERROR;};
-            if (f_read(&this->file, &o->psg_file_buf[flag*(256+4)], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};
-            if (f_lseek(&this->file, (file_loop-1)*(256 + 4)) != FR_OK) {return READ_FILE_ERROR;};
-            int string_result =_intelligent_sorting((char*)o->psg_file_buf, (char*)&o->psg_file_buf[256+4]);    // Между временем и строкой 100% будет пробел. => время не тронут.
-            if (string_result < 0) {    // Если [0] строка меньше чем [256+4].
-                if (f_write(&this->file, &o->psg_file_buf[0], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};    // Обязательно записываем.
-                flag = 0;
-            } else {
-                if (f_write(&this->file, &o->psg_file_buf[256 + 4], 256 + 4, &wr_status) != FR_OK) {return READ_FILE_ERROR;};
-                flag = 1;
-            };
-        };
-    };
-    int res = f_close(&this->file);
-    xSemaphoreGive(*o->cfg->microsd_mutex);
-    if (res != FR_OK) {
-        return OPEN_FILE_ERROR;
-    }
-    return 0;
-}
-*/
