@@ -33,12 +33,18 @@ void ay_ym_low_lavel::out_data ( void ) const {
      this->cfg->bdir->reset();
 }
 
-
+void ay_ym_low_lavel::full_clear ( void ) const {
+    this->cfg->tim_interrupt_task->off();
+    for ( int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ ) {
+        xQueueReset( this->cfg->queue_array[ chip_loop ] );
+    }
+    this->hardware_clear();
+    this->cfg->tim_frequency_ay->off();
+}
 
 /*
  * Вызывается в прерывании по переполнению таймера, настроенного на прерывание раз в 50 мс (по-умолчанию, значение может меняться).
  */
-
 void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
     this->cfg->tim_interrupt_task->clear_interrupt_flag();
     static USER_OS_PRIO_TASK_WOKEN     prio;

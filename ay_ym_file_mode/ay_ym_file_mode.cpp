@@ -70,7 +70,6 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     this->cfg->ay_hardware->play_state_set( 1 );
     this->clear_chip( 0 );                              // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
-
     ay_queue_struct     bq = { 0, 0, 0 };               // Буффер для одного элемента очереди.
 
     bool                flag = false;                   // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
@@ -97,6 +96,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
+                this->cfg->ay_hardware->full_clear(); // Очищаем AY, очереди. Потом отключаем его.
                 return EC_AY_FILE_MODE::OK;
             }
         };
@@ -108,11 +108,11 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
         }
 
         if ( flag == false ) {
-            if ( b[p] == 0xFF ) {                                                // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
+            if ( b[p] == 0xFF ) {                                        // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
                 bq.reg = 0xFF;
                 this->cfg->ay_hardware->queue_add_element( &bq );
             } else {
-                bq.reg = b[p];                                               // Регистр мы просто записываем. Но не отправляем в очередь.
+                bq.reg = b[p];                                           // Регистр мы просто записываем. Но не отправляем в очередь.
                 flag = true;
             }
         } else {
@@ -124,8 +124,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_fi
     };
 
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
-    this->cfg->ay_hardware->play_state_set( 0 );
-
+    this->cfg->ay_hardware->full_clear();                               // Очищаем AY, очереди. Потом отключаем его.
     return EC_AY_FILE_MODE::OK;
 }
 
