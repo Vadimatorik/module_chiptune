@@ -15,11 +15,17 @@ ay_ym_low_lavel::ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cf
  */
 
 void ay_ym_low_lavel::out_reg ( void ) const {
-     this->cfg->sr->write();
-     this->cfg->bc1->set(cfg);
-     this->cfg->bdir->set();
-     this->cfg->bdir->reset();
-     this->cfg->bc1->reset();
+    if ( this->cfg->mutex != nullptr)
+        USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
+
+    this->cfg->sr->write();
+    this->cfg->bc1->set(cfg);
+    this->cfg->bdir->set();
+    this->cfg->bdir->reset();
+    this->cfg->bc1->reset();
+
+    if ( this->cfg->mutex != nullptr)
+        USER_OS_GIVE_MUTEX( *this->cfg->mutex );
 }
 
 /*
@@ -28,9 +34,15 @@ void ay_ym_low_lavel::out_reg ( void ) const {
  */
 
 void ay_ym_low_lavel::out_data ( void ) const {
+    if ( this->cfg->mutex != nullptr)
+        USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
+
      this->cfg->sr->write();
      this->cfg->bdir->set();
      this->cfg->bdir->reset();
+
+    if ( this->cfg->mutex != nullptr)
+        USER_OS_GIVE_MUTEX( *this->cfg->mutex );
 }
 
 void ay_ym_low_lavel::full_clear ( void ) const {
