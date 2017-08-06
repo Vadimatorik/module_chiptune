@@ -1,10 +1,9 @@
 #pragma once
 
-#include "errno.h"
-#include "stm32_f20x_f21x_include_module_lib.h"
 #include "module_shift_register.h"
-#include "mk_hardware_interfaces_timer.h"                   // Таймеры.
+#include "mk_hardware_interfaces_timer.h"
 #include "mk_hardware_interfaces_pin.h"
+#include "user_os.h"
 #include "string.h"
 
 // Данная структура показывает, как подключен чип AY к сдвиговому регистру.
@@ -65,7 +64,7 @@ struct ay_ym_low_lavel_cfg_t {
 
 
 struct ay_low_out_data_struct {
-    uint8_t     reg;    // Если сюда положат 0xFF, значит, что нужно больше для конкретного чипа в этом интервале времени посылок нет!
+    uint8_t     reg;        // Если сюда положат 0xFF, значит, что нужно больше для конкретного чипа в этом интервале времени посылок нет!
     uint8_t     data;
 };
 
@@ -74,7 +73,7 @@ struct ay_low_out_data_struct {
  */
 struct ay_queue_struct {
     uint8_t     number_chip;
-    uint8_t     reg;                // Когда здесь 0xFF - поле data игнорируется, считается командой паузы в одно прерывание!
+    uint8_t     reg;        // Когда здесь 0xFF - поле data игнорируется, считается командой паузы в одно прерывание!
     uint8_t     data;
 };
 
@@ -141,14 +140,14 @@ private:
      * Этим симафором будем показывать, что пора передать следущую порцию данных.
      * Мы ждем его в задаче ay_queue_out_task и отдаем в ay_timer_handler.
      */
-    mutable USER_OS_STATIC_BIN_SEMAPHORE_BUFFER semaphore_buf = USER_OS_STATIC_BIN_SEMAPHORE_BUFFER_INIT_VALUE;
-    mutable USER_OS_STATIC_BIN_SEMAPHORE        semaphore     = nullptr;
+    USER_OS_STATIC_BIN_SEMAPHORE_BUFFER semaphore_buf = USER_OS_STATIC_BIN_SEMAPHORE_BUFFER_INIT_VALUE;
+    USER_OS_STATIC_BIN_SEMAPHORE        semaphore     = nullptr;
 
     /*
      * Для создания задачи.
      */
-    mutable USER_OS_STATIC_STACK_TYPE           task_stack[ AY_YM_LOW_LAVEL_TASK_STACK_SIZE ] = { 0 };
-    mutable USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
+    USER_OS_STATIC_STACK_TYPE           task_stack[ AY_YM_LOW_LAVEL_TASK_STACK_SIZE ] = { 0 };
+    USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
 
     /*
      * Далее все сделано так, чтобы можно было поддерживать до 32 AY/YM чипов.

@@ -9,7 +9,7 @@ struct ay_ym_file_mode_struct_cfg_t {
     ay_ym_low_lavel*            ay_hardware;
     USER_OS_STATIC_MUTEX*       microsd_mutex;                 // Для эксклюзивного доступа к microsd (создается пользователем заранее).
                                                                // Может быть nullptr, если картой никто не пользуется.
-  };
+};
 
 enum class EC_AY_FILE_MODE {
     OK                      = 0,
@@ -35,7 +35,7 @@ public:
     // Параметры:
     // [IN]  dir_path - строка-путь к файлу в стиле fatfs.
     //**********************************************************************
-    EC_AY_FILE_MODE        find_psg_file           ( char* dir_path );
+    EC_AY_FILE_MODE     find_psg_file                   ( char* dir_path );
 
     //**********************************************************************
     // Получаем имя и длительность файла.
@@ -45,39 +45,39 @@ public:
     // [OUT] name               - сюда помещается считанное имя.
     // [OUT] time               - сюда помещается считанное время.
     //**********************************************************************
-    EC_AY_FILE_MODE        psg_file_get_name       ( char* dir_path, uint32_t psg_file_number, char* name, uint32_t& time );
+    EC_AY_FILE_MODE     psg_file_get_name               ( char* dir_path, uint32_t psg_file_number, char* name, uint32_t& time );
 
     //**********************************************************************
     // Воспроизводим psg файл.
     // Важно! В папке по пути dir_path лолжен существовать файл списка воспроизведения.
     //**********************************************************************
-    EC_AY_FILE_MODE        psg_file_play           ( char* dir_path, uint32_t psg_file_number );
+    EC_AY_FILE_MODE     psg_file_play                   ( char* dir_path, uint32_t psg_file_number );
 
     // Завершает psg_file_play из другого потока.
-    void                   psg_file_stop           ( void );                                           // Останавливакем воспроизведение.
+    void                psg_file_stop                   ( void );                                           // Останавливакем воспроизведение.
                                                                     // валидных psg файлов.
 
 
 
 private:
-    EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
+    EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array  ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
 
     // Получаем длину файла (если валидный).
     // Файл должен находится в текущей директории.
-    EC_AY_FILE_MODE    psg_file_get_long ( char* name, uint32_t& result_long );
+    EC_AY_FILE_MODE     psg_file_get_long               ( char* name, uint32_t& result_long );
 
     // Ждем, пока все данные из очереди ay низкого уровня будут переданы (файл будет воиспроизведен до конца).
-    void               ay_delay_ay_low_queue_clean ( void );
+    void                ay_delay_ay_low_queue_clean     ( void );
 
     // Очищаем чип через очередь.
-    void    clear_chip              ( uint8_t chip_number );
+    void                clear_chip                      ( uint8_t chip_number );
 
     // Количество файлов в текущей директории.
-    uint32_t           file_count;
+    uint32_t    file_count     = 0;
 
     const ay_ym_file_mode_struct_cfg_t* const cfg;
 
-    bool    emergency_team = false;
+    bool        emergency_team = false;
 };
 
 
