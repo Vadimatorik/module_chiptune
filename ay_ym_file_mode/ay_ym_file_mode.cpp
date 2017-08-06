@@ -33,7 +33,7 @@ void ay_ym_file_mode::psg_file_stop ( void ) {
 // Ждем, пока все данные из очереди будут переданы.
 void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
     while( this->cfg->ay_hardware->queue_empty_check() != true ) {           // Ждем, пока AY освободится.
-        vTaskDelay(20);
+        USER_OS_DELAY_MS(20);
     }
 }
 
@@ -195,9 +195,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( char* dir_path ) {
 
     // Создаем файл-список psg файлов.
     // В него будем записывать построчно названия файлов, которые пройдет проверку.
-    if ( this->cfg->microsd_mutex != nullptr ) {
+    if ( this->cfg->microsd_mutex != nullptr )
         USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );    // sdcard занята нами.
-    }
 
     DIR     d;
     FILINFO fi;
@@ -211,9 +210,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( char* dir_path ) {
         if ( r != FR_OK ) {
             f_close( &file_list );
             f_closedir( &d );
-            if ( this->cfg->microsd_mutex != nullptr ) {
+            if ( this->cfg->microsd_mutex != nullptr )
                 USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-            }
             return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
         }
     }
@@ -260,9 +258,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( char* dir_path ) {
         f_closedir( &d );
     }
 
-    if ( this->cfg->microsd_mutex != nullptr ) {
+    if ( this->cfg->microsd_mutex != nullptr )
         USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-    }
 
     this->file_count = valid_file_count;
 
@@ -323,7 +320,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( char* dir_path, uint32_t ps
     }
 
     if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
 
     return func_res;
 }

@@ -36,7 +36,7 @@ void ay_ym_low_lavel::out_data ( void ) const {
 void ay_ym_low_lavel::full_clear ( void ) const {
     this->cfg->tim_interrupt_task->off();
     for ( int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ ) {
-        xQueueReset( this->cfg->queue_array[ chip_loop ] );
+        USER_OS_QUEUE_RESET( this->cfg->queue_array[ chip_loop ] );
     }
     this->hardware_clear();
     this->cfg->tim_frequency_ay->off();
@@ -53,7 +53,7 @@ void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
 
 bool ay_ym_low_lavel::queue_empty_check ( void ) {
     for (int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++) {
-        if ( uxQueueMessagesWaiting( this->cfg->queue_array[ chip_loop ] ) != 0 ) {
+        if ( USER_OS_QUEUE_CHECK_WAIT_ITEM( this->cfg->queue_array[ chip_loop ] ) != 0 ) {
             return false;
         }
     }
@@ -70,7 +70,7 @@ void ay_ym_low_lavel::queue_add_element ( ay_queue_struct* item ) const {
     buf.reg     = item->reg;
     buf.data    = item->data;
 
-    xQueueSend( this->cfg->queue_array[item->number_chip], &buf, portMAX_DELAY );
+    USER_OS_QUEUE_SEND( this->cfg->queue_array[item->number_chip], &buf, portMAX_DELAY );
 }
 
 // Включить/выключить 1 канал одного из чипов. Через очередь.
@@ -158,7 +158,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                     for ( volatile uint8_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {    // Собираем регистр/данные со всех очередей всех чипов.
                         volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->queue_array[chip_loop]);
                         if ( count != 0 ) {    // Если для этого чипа очередь не пуста.
-                                xQueueReceive(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
+                                USER_OS_QUEUE_RECEIVE(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
                                 if ( buffer[chip_loop].reg == 0xFF ){    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
                                     flag |= 1<<chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
                                 } else {    // Если пришли реальные данные.
@@ -190,7 +190,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                 if ( obj->tic_ff == 50 ) {        // Если насчитали секунду.
                     obj->tic_ff = 0;
                     if ( obj->cfg->semaphore_sec_out != nullptr ) {    // Если есть соединение семофором, то отдать его.
-                         xSemaphoreGive( *obj->cfg->semaphore_sec_out );
+                         USER_OS_GIVE_BIN_SEMAPHORE( *obj->cfg->semaphore_sec_out );
                     };
                 };
     }
