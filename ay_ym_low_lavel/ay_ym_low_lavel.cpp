@@ -177,7 +177,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                                     flag |= 1<<chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
                                 } else {    // Если пришли реальные данные.
                                     if ( buffer[chip_loop].reg == 7){            // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
-                                        obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].reg;
+                                        obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
                                     }
                                 }
                             } else {
