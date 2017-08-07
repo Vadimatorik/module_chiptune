@@ -63,6 +63,7 @@ void ay_ym_low_lavel::timer_interrupt_handler ( void ) const {
     USER_OS_GIVE_BIN_SEMAPHORE_FROM_ISR( this->semaphore, &prio );    // Отдаем симафор и выходим (этим мы разблокируем поток, который выдает в чипы данные).
 }
 
+// true - если все очереди пусты.
 bool ay_ym_low_lavel::queue_empty_check ( void ) {
     for (int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++) {
         if ( USER_OS_QUEUE_CHECK_WAIT_ITEM( this->cfg->queue_array[ chip_loop ] ) != 0 ) {
@@ -163,6 +164,7 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         while( true ) {
             flag = 0;                                            // Предположим, что данные есть во всех очерядях.
             USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );      // Как только произошло прерывание (была разблокировка из ay_timer_handler).
+            if ( obj->queue_empty_check() == true ) continue;                  // Если в очередях пусто - выходим.
                 while (flag != (0xFFFFFFFF >>(32- obj->cfg->ay_number)) ) {    // Выдаем данные, пока все очереди не освободятся.]
                     /*
                      * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).

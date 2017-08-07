@@ -13,12 +13,13 @@ struct ay_ym_file_mode_struct_cfg_t {
 
 enum class EC_AY_FILE_MODE {
     OK                      = 0,
-    ARG_ERROR               = 1,                              // Ошибка входного аргумента ( например, попросили сыграть 2-й файл, когда в папке всего 1 ).
-    WRITE_FILE_ERROR        = 2,
-    OPEN_FILE_ERROR         = 3,
-    OPEN_DIR_ERROR          = 4,
-    OPEN_READ_DIR_ERROR     = 5,
-    READ_FILE_ERROR         = 6,
+    ARG_ERROR,                                             // Ошибка входного аргумента ( например, попросили сыграть 2-й файл, когда в папке всего 1 ).
+    WRITE_FILE_ERROR,
+    OPEN_FILE_ERROR,
+    OPEN_DIR_ERROR,
+    OPEN_READ_DIR_ERROR,
+    READ_FILE_ERROR,
+    FIND_ERROR
 };
 
 class ay_ym_file_mode {
