@@ -215,6 +215,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( char* dir_path ) {
             return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
         }
     } else {
+        if ( this->cfg->microsd_mutex != nullptr )
+            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
         f_closedir( &d );
         return EC_AY_FILE_MODE::FIND_ERROR;
     }
