@@ -145,14 +145,14 @@ private:
      * Этим симафором будем показывать, что пора передать следущую порцию данных.
      * Мы ждем его в задаче ay_queue_out_task и отдаем в ay_timer_handler.
      */
-    USER_OS_STATIC_BIN_SEMAPHORE_BUFFER semaphore_buf = USER_OS_STATIC_BIN_SEMAPHORE_BUFFER_INIT_VALUE;
+    USER_OS_STATIC_BIN_SEMAPHORE_BUFFER semaphore_buf;
     USER_OS_STATIC_BIN_SEMAPHORE        semaphore     = nullptr;
 
     /*
      * Для создания задачи.
      */
     USER_OS_STATIC_STACK_TYPE           task_stack[ AY_YM_LOW_LAVEL_TASK_STACK_SIZE ] = { 0 };
-    USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct = USER_OS_STATIC_TASK_STRUCT_INIT_VALUE;
+    USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct;
 
     /*
      * Далее все сделано так, чтобы можно было поддерживать до 32 AY/YM чипов.
