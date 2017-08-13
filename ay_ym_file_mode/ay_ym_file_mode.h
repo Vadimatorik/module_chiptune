@@ -57,15 +57,15 @@ public:
     // Завершает psg_file_play из другого потока.
     void                psg_file_stop                   ( void );                                           // Останавливакем воспроизведение.
                                                                     // валидных psg файлов.
+    // Получаем длину файла (если валидный).
+    // Файл должен находится в текущей директории.
+    EC_AY_FILE_MODE     psg_file_get_long               ( char* name, uint32_t& result_long );
 
 
 
 private:
     EC_AY_FILE_MODE     psg_part_copy_from_sd_to_array  ( uint32_t sektor, uint16_t point_buffer, uint8_t number_sector, UINT *l );
 
-    // Получаем длину файла (если валидный).
-    // Файл должен находится в текущей директории.
-    EC_AY_FILE_MODE     psg_file_get_long               ( char* name, uint32_t& result_long );
 
     // Ждем, пока все данные из очереди ay низкого уровня будут переданы (файл будет воиспроизведен до конца).
     void                ay_delay_ay_low_queue_clean     ( void );
