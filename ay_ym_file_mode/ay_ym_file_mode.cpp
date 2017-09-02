@@ -22,8 +22,6 @@ void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
     }
 }
 
-
-
 // Останавливаем трек и чистим буфер
 // (завершает метод psg_file_play из другого потока).
 void ay_ym_file_mode::psg_file_stop ( void ) {
@@ -37,31 +35,11 @@ void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
     }
 }
 
-
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* dir_path, uint32_t psg_file_number ) {
-    if ( psg_file_number > this->file_count ) {
-        return EC_AY_FILE_MODE::ARG_ERROR;
-    }
-
-    // Достаем имя файла и его длину из файла-списка.
-    EC_AY_FILE_MODE     func_res;
-    char                name[256];
-    uint32_t            len_i;
+EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file ) {
     FRESULT             r;
-    func_res = this->psg_file_get_name( dir_path, psg_file_number, name, len_i );
-    if ( func_res != EC_AY_FILE_MODE::OK )
-        return func_res;
-
-    // Открываем наш psg файл.
-    DIR     d;
-    r = f_opendir( &d, dir_path );
-    if ( r != FR_OK )
-        return EC_AY_FILE_MODE::OPEN_DIR_ERROR;
-
-
     FIL     file;
-    r = f_open( &file, name, FA_OPEN_EXISTING | FA_READ );
+    r = f_open( &file, full_name_file, FA_OPEN_EXISTING | FA_READ );
     if ( r != FR_OK ) {
         return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
     }
@@ -185,147 +163,4 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
 
     f_close( &file_psg );                                       // Закрываем файл.
     return EC_AY_FILE_MODE::OK;
-}
-
-// Сканируе дерикторию на наличие psg файлов (возвращаем колличетсов ВАЛИДНЫХ файлов).
-EC_AY_FILE_MODE ay_ym_file_mode::find_psg_file ( char* dir_path ) {
-    EC_AY_FILE_MODE     func_res        = EC_AY_FILE_MODE::OK;
-    FRESULT             r;
-    FIL                 file_list;
-
-    // Создаем файл-список psg файлов.
-    // В него будем записывать построчно названия файлов, которые пройдет проверку.
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );    // sdcard занята нами.
-
-    DIR     d;
-    FILINFO fi;
-
-    // Начинаем поиск файлов в переданной параметром директории.
-    r = f_findfirst( &d, &fi, dir_path, "*.psg" );
-
-    // Если есть хоть 1 подходящий файл в директории - создаем файл-список.
-    if ( r == FR_OK ) {
-        r = f_open( &file_list, "psg_list.txt", FA_CREATE_ALWAYS | FA_READ | FA_WRITE );
-        if ( r != FR_OK ) {
-            f_close( &file_list );
-            f_closedir( &d );
-            if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-            return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
-        }
-    } else {
-        if ( this->cfg->microsd_mutex != nullptr )
-            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-        f_closedir( &d );
-        return EC_AY_FILE_MODE::FIND_ERROR;
-    }
-
-    uint32_t valid_file_count = 0;
-    while ( ( r == FR_OK ) && ( fi.fname[0] != 0 ) ) {                  // Если psg был найден.
-        uint32_t len;
-        EC_AY_FILE_MODE r_psg_get;
-        r_psg_get = this->psg_file_get_long( fi.fname, len );           // Проверяем валидность файла.
-        if ( r_psg_get != EC_AY_FILE_MODE::OK ) continue;               // Если файл бракованный - выходим.
-        // Файл рабочий.
-        valid_file_count++;
-        // Для каждого удачного файла - сохранение на 512 байт.
-
-
-        char b[512] = {0};
-
-        // Имя может быть длинным или коротким.
-        if ( fi.fname[0] == 0 ) {
-            memcpy( b, fi.altname, 13 );                                // 256 первых - строка имени (255 максимум символов UTF-8) + 0.
-        } else {
-            memcpy( b, fi.fname, 256 );
-        }
-
-        memcpy( &b[256], &len, 4 );                                     // Далее 4 байта uint32_t - время.
-        UINT l;                                                         // Количество записанных байт (должно быть 512).
-        r = f_write( &file_list, b, 512, &l );
-        if ( r != FR_OK ) {
-            func_res = EC_AY_FILE_MODE::OPEN_FILE_ERROR;
-            break;
-        }
-
-        if ( l != 512 ) {                                               // Если запись не прошла - аварийный выход.
-            func_res = EC_AY_FILE_MODE::WRITE_FILE_ERROR;
-            break;
-        }
-        // Ищем следующий файл.
-        r = f_findnext( &d, &fi );
-    }
-
-    // Если не удалось связаться с картой, то выходим без закрытия.
-    if ( r == FR_OK ) {
-        f_close( &file_list );
-        f_closedir( &d );
-    }
-
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-
-    this->file_count = valid_file_count;
-
-    return func_res;
-}
-
-// Получаем имя файла и его длительность по его номеру из составленного списка.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_name ( char* dir_path, uint32_t psg_file_number, char* name, uint32_t& time ) {
-    FRESULT r;
-    EC_AY_FILE_MODE func_res = EC_AY_FILE_MODE::OK;
-    FIL     file_list;
-    DIR     d;
-
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );     // sdcard занята нами.
-
-    do {
-        r = f_opendir( &d, dir_path );
-        if ( r != FR_OK ) {
-            func_res = EC_AY_FILE_MODE::OPEN_DIR_ERROR;
-            break;
-        }
-
-        r = f_open( &file_list, "psg_list.txt", FA_OPEN_EXISTING | FA_READ );
-        if ( r != FR_OK ) {
-            func_res = EC_AY_FILE_MODE::OPEN_FILE_ERROR;
-            break;
-        }
-
-        if ( psg_file_number > this->file_count ) {
-            func_res = EC_AY_FILE_MODE::ARG_ERROR;
-            break;
-        }
-
-        psg_file_number *= 512;                                             // Вычисляем начало сектора с информацией о нашем файле.
-
-        r = f_lseek( &file_list, psg_file_number );                         // Перемещаемся к нужному месту.
-        if ( r != FR_OK ) {
-            func_res = EC_AY_FILE_MODE::READ_FILE_ERROR;
-            break;
-        }
-
-        uint8_t b[512];
-        UINT l;
-        r =  f_read( &file_list, b, 512, &l );
-        if ( ( r != FR_OK ) | ( l != 512 ) ) {
-            func_res = EC_AY_FILE_MODE::READ_FILE_ERROR;
-            break;
-        }
-
-        memcpy( name, b, 256 );
-        memcpy( &time, &b[256], 4 );
-    } while ( false );
-
-    if ( r == FR_OK ) {                                                     // Защита от вытащенной карты.
-        f_close( &file_list );
-        f_closedir( &d );
-    }
-
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );    // sdcard свободна.
-
-    return func_res;
 }
