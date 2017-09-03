@@ -36,7 +36,7 @@ void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file ) {
+EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
     FRESULT             r;
     FIL     file;
     r = f_open( &file, full_name_file, FA_OPEN_EXISTING | FA_READ );
@@ -46,9 +46,9 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file ) {
 
     // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
     this->cfg->ay_hardware->play_state_set( 1 );
-    this->clear_chip( 1 );                              // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
+    this->clear_chip( number_chip );                    // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
-    ay_queue_struct     bq = { 1, 0, 0 };               // Буффер для одного элемента очереди.
+    ay_queue_struct     bq = { number_chip, 0, 0 };     // Буффер для одного элемента очереди.
 
     bool                flag = false;                   // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
     volatile uint32_t   p = 16;                         // Номер элемента в буффере, из которого мы будем выдавать данные.

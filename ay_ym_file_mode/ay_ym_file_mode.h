@@ -30,7 +30,7 @@ public:
     // Воспроизводим psg файл.
     // Важно! В папке по пути dir_path лолжен существовать файл списка воспроизведения.
     //**********************************************************************
-    EC_AY_FILE_MODE     psg_file_play ( char* full_name_file );
+    EC_AY_FILE_MODE     psg_file_play ( char* full_name_file, uint8_t number_chip );
 
     // Завершает psg_file_play из другого потока.
     void                psg_file_stop                   ( void );                                           // Останавливакем воспроизведение.

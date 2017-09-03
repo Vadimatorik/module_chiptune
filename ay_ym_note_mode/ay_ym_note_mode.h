@@ -15,7 +15,7 @@ public:
     constexpr ay_ym_note ( const ay_ym_note_cfg_t* const cfg ) : cfg(cfg) {}
     // chip_number - номер чипа. Счет с 0.
     // channel - канал чипа: 0..2.
-
+    int reinit ( uint8_t chip_number ) const;
     int write_note_to_channel ( uint8_t chip_number, uint8_t channel, uint8_t note ) const;
     int set_volume_channel ( uint8_t chip_number, uint8_t channel, uint8_t volume ) const;
 private:

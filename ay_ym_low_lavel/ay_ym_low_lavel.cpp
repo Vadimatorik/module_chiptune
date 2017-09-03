@@ -158,10 +158,18 @@ uint8_t ay_ym_low_lavel::connection_transformation ( const uint8_t chip, const u
 
 void ay_ym_low_lavel::task ( void* p_this ) {
         ay_ym_low_lavel* obj = ( ay_ym_low_lavel* ) p_this;
-        ay_low_out_data_struct buffer[ obj->cfg->ay_number];     // Буфер для адрес/команда для всех чипов.
+        ay_low_out_data_struct buffer[ obj->cfg->ay_number ];    // Буфер для адрес/команда для всех чипов.
+
+
         volatile uint32_t flag;                                  // Внутренняя переменная "опустошения очереди". Она будет сравниваться с flag_over (читать подробное описание у этой переменной).
         obj->hardware_clear();                                   // Важно очистить чипы полностью без использования очереди.
         while( true ) {
+            // Чистим буфер на случай, если какой-то из чипов использован не будет.
+            for ( uint32_t l = 0; l < obj->cfg->ay_number; l++ ) {
+                buffer[l].reg = 15;
+                buffer[l].data = 0;
+            }
+
             flag = 0;                                            // Предположим, что данные есть во всех очерядях.
             USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );      // Как только произошло прерывание (была разблокировка из ay_timer_handler).
             if ( obj->queue_empty_check() == true ) continue;                  // Если в очередях пусто - выходим.
