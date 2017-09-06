@@ -135,6 +135,8 @@ private:
 
     static void task ( void* p_this );
 
+    // Сбрасывает флаги "паузы" на чипе.
+    void reset_flag_wait ( bool* flag_array );
 
     /*
      * Этим симафором будем показывать, что пора передать следущую порцию данных.

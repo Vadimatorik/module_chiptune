@@ -138,6 +138,12 @@ uint8_t ay_ym_low_lavel::connection_transformation ( const uint8_t chip, const u
     return buffer;
 }
 
+void ay_ym_low_lavel::reset_flag_wait ( bool* flag_array ) {
+    for ( uint32_t chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ ) {
+        flag_array[ chip_loop ] = false;
+    }
+}
+
 //**********************************************************************
 // Данный поток будет выдавать из очереди 50 раз
 // в секунду данные (данные разделяются 0xFF).
@@ -146,75 +152,60 @@ uint8_t ay_ym_low_lavel::connection_transformation ( const uint8_t chip, const u
 
 void ay_ym_low_lavel::task ( void* p_this ) {
     ay_ym_low_lavel*            obj = ( ay_ym_low_lavel* ) p_this;
-    ay_low_out_data_struct      buffer[ obj->cfg->ay_number ];    // Буфер для адрес/команда для всех чипов.
+    ay_low_out_data_struct      buffer[ obj->cfg->ay_number ];          // Буфер для адрес/команда для всех чипов.
+    bool                        flag_wait[ obj->cfg->ay_number ];       // True - в этом прерывании уже не обрабатываем эту очередь.
+    obj->hardware_clear();                                              // Важно очистить чипы полностью без использования очереди.
 
+    while( true ) {
+        obj->reset_flag_wait( flag_wait );                              // Новое прерывание, все флаги можно сбросить.
+        USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
+        if ( obj->queue_empty_check() == true ) continue;               // Если в очередях пусто - выходим.
 
-        volatile uint32_t flag;                                  // Внутренняя переменная "опустошения очереди". Она будет сравниваться с flag_over (читать подробное описание у этой переменной).
-        obj->hardware_clear();                                   // Важно очистить чипы полностью без использования очереди.
-        while( true ) {
-            // Чистим буфер на случай, если какой-то из чипов использован не будет.
-          /*  for ( uint32_t l = 0; l < obj->cfg->ay_number; l++ ) {
-                buffer[l].reg = 15;
-                buffer[l].data = 0;
-            }*/
-
-            flag = 0;                                            // Предположим, что данные есть во всех очерядях.
-            USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );      // Как только произошло прерывание (была разблокировка из ay_timer_handler).
-            if ( obj->queue_empty_check() == true ) continue;                  // Если в очередях пусто - выходим.
-                while (flag != (0xFFFFFFFF >>(32- obj->cfg->ay_number)) ) {    // Выдаем данные, пока все очереди не освободятся.]
-                    /*
-                     * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).
-                     */
-                    for ( volatile uint8_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {    // Собираем регистр/данные со всех очередей всех чипов.
-                        if ( flag & 1 << chip_loop ) {          // Если этот чип уже неактивен, то пишем во внешний регистр (пустотку).
-                            buffer[chip_loop].reg = 17;
-                            continue;
-                        }
-                        volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->queue_array[chip_loop]);
-                        if ( count != 0 ) {    // Если для этого чипа очередь не пуста.
-                            USER_OS_QUEUE_RECEIVE(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
-                            if ( buffer[chip_loop].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
-                                buffer[chip_loop].reg = 17;
-                                flag |= 1 << chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
-                            } else {    // Если пришли реальные данные.
-                                if ( buffer[chip_loop].reg == 7){            // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
-                                    obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
-                                }
-                            }
-                        } else {
-                            buffer[chip_loop].reg = 17;
-                            flag |= 1 << chip_loop;        // Показываем, что в этой очереди закончились элементы.
-                        }
-                    }
-
-                    /*
-                     * Собранный пакет раскладываем на регистры и на их значения и отправляем.
-                     */
-                    for (int chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++){    // Раскладываем на регистры.
-                        obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].reg );
-                    }
-                    obj->out_reg();
-                    for (int chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++){    // Раскладываем на значения.
-                        obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
-                    }
-                    obj->out_data();
+        // Собираем из всех очередей пакет регистр/значение.
+        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {
+            if ( !flag_wait[chip_loop] ) continue;
+            USER_OS_QUEUE_CHECK_WAIT_ITEM( obj->cfg->queue_array[ chip_loop ] );
+            uint32_t count = uxQueueMessagesWaiting( obj->cfg->queue_array[chip_loop] );
+            if ( count != 0 ) {                                                                         // Если для этого чипа очередь не пуста.
+                USER_OS_QUEUE_RECEIVE( obj->cfg->queue_array[ chip_loop ], &buffer[ chip_loop ], 0);    // Достаем этот элемент без ожидания, т.к. точно знаем, что он есть.
+                if ( buffer[ chip_loop ].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
+                    buffer[chip_loop].reg = 17;             // Если этот чип уже неактивен, то пишем во внешний регистр (пустоту). Сейчас и далее.
+                    flag_wait[chip_loop] = true;            // Защищаем эту очередь от последущего считывания в этом прерывании.
+                } else if ( buffer[chip_loop].reg == 7){    // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
+                    obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
                 }
-                /*
-                 * В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
-                 */
-                obj->tic_ff++;
-                if ( obj->tic_ff == 50 ) {        // Если насчитали секунду.
-                    obj->tic_ff = 0;
-                    if ( obj->cfg->semaphore_sec_out != nullptr ) {    // Если есть соединение семофором, то отдать его.
-                         USER_OS_GIVE_BIN_SEMAPHORE( *obj->cfg->semaphore_sec_out );
-                    };
-                };
+            } else {
+                buffer[chip_loop].reg = 17;
+                flag_wait[chip_loop] = true;     // Показываем, что в этой очереди закончились элементы.
+            }
+        }
+
+        //**********************************************************************
+        // Собранный пакет раскладываем на регистры и на их значения и отправляем.
+        //**********************************************************************
+        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
+            obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].reg );
+
+        obj->out_reg();
+        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
+            obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
+
+        obj->out_data();
+
+        //**********************************************************************
+        // В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
+        //**********************************************************************
+        obj->tic_ff++;
+        if ( obj->tic_ff != 50 )                        return;
+        obj->tic_ff = 0;// Если насчитали секунду.
+        if ( obj->cfg->semaphore_sec_out == nullptr )   return;         // Если есть соединение семофором, то отдать его.
+        USER_OS_GIVE_BIN_SEMAPHORE( *obj->cfg->semaphore_sec_out );
     }
 }
 
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
 void ay_ym_low_lavel::play_state_set ( uint8_t state ) const {
-    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );         // В любом случае писать будем в R7.
+    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );           // В любом случае писать будем в R7.
     this->out_reg();
 
     if ( state == 1 ){
