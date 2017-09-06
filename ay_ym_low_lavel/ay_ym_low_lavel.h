@@ -82,7 +82,7 @@ struct ay_queue_struct {
     uint8_t     data;
 };
 
-#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE             100
+#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE             400
 
 // Очередь должна быть как минимум 1 элемент (в идеале - по 16*2 b и более для каждого чипа).
 // Очердь общая для все чипов!

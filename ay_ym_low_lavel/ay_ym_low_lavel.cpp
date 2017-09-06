@@ -19,7 +19,7 @@ void ay_ym_low_lavel::out_reg ( void ) const {
         USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
 
     this->cfg->sr->write();
-    this->cfg->bc1->set(cfg);
+    this->cfg->bc1->set();
     this->cfg->bdir->set();
     this->cfg->bdir->reset();
     this->cfg->bc1->reset();
@@ -165,10 +165,10 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         obj->hardware_clear();                                   // Важно очистить чипы полностью без использования очереди.
         while( true ) {
             // Чистим буфер на случай, если какой-то из чипов использован не будет.
-            for ( uint32_t l = 0; l < obj->cfg->ay_number; l++ ) {
+          /*  for ( uint32_t l = 0; l < obj->cfg->ay_number; l++ ) {
                 buffer[l].reg = 15;
                 buffer[l].data = 0;
-            }
+            }*/
 
             flag = 0;                                            // Предположим, что данные есть во всех очерядях.
             USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );      // Как только произошло прерывание (была разблокировка из ay_timer_handler).
@@ -178,19 +178,25 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                      * Собираем из всех очередей пакет регистр/значение (если нет данных, то NO_DATA_FOR_AY).
                      */
                     for ( volatile uint8_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {    // Собираем регистр/данные со всех очередей всех чипов.
+                        if ( flag & 1 << chip_loop ) {          // Если этот чип уже неактивен, то пишем во внешний регистр (пустотку).
+                            buffer[chip_loop].reg = 17;
+                            continue;
+                        }
                         volatile uint32_t count = uxQueueMessagesWaiting(obj->cfg->queue_array[chip_loop]);
                         if ( count != 0 ) {    // Если для этого чипа очередь не пуста.
-                                USER_OS_QUEUE_RECEIVE(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
-                                if ( buffer[chip_loop].reg == 0xFF ){    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
-                                    flag |= 1<<chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
-                                } else {    // Если пришли реальные данные.
-                                    if ( buffer[chip_loop].reg == 7){            // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
-                                        obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
-                                    }
+                            USER_OS_QUEUE_RECEIVE(obj->cfg->queue_array[chip_loop], &buffer[chip_loop], 0);    // Достаем этот эхлемент без ожидания, т.к. точно знаем, что он есть.
+                            if ( buffer[chip_loop].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
+                                buffer[chip_loop].reg = 17;
+                                flag |= 1 << chip_loop; // то защищаем эту очередь от последущего считывания в этом прерывании.
+                            } else {    // Если пришли реальные данные.
+                                if ( buffer[chip_loop].reg == 7){            // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
+                                    obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
                                 }
-                            } else {
-                                flag |= 1<<chip_loop;        // Показываем, что в этой очереди закончились элементы.
                             }
+                        } else {
+                            buffer[chip_loop].reg = 17;
+                            flag |= 1 << chip_loop;        // Показываем, что в этой очереди закончились элементы.
+                        }
                     }
 
                     /*
