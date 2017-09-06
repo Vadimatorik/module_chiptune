@@ -208,7 +208,7 @@ void ay_ym_low_lavel::play_state_set ( uint8_t state ) const {
     memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );           // В любом случае писать будем в R7.
     this->out_reg();
 
-    if ( state == 1 ){
+    if ( state == 1 ) {
         this->cfg->tim_frequency_ay->on();
         this->cfg->tim_interrupt_task->on();
         for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {        // Возвращаем состояние всех AY.
