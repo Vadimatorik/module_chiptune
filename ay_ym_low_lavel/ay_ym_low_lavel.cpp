@@ -144,6 +144,13 @@ void ay_ym_low_lavel::reset_flag_wait ( bool* flag_array ) {
     }
 }
 
+// False - когда все флаги False.
+bool ay_ym_low_lavel::chack_flag_wait ( bool* flag_array ) {
+    for ( uint32_t chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ )
+        if ( flag_array[ chip_loop ] == false ) return true;
+    return false;
+}
+
 //**********************************************************************
 // Данный поток будет выдавать из очереди 50 раз
 // в секунду данные (данные разделяются 0xFF).
@@ -161,45 +168,46 @@ void ay_ym_low_lavel::task ( void* p_this ) {
         USER_OS_TAKE_BIN_SEMAPHORE ( obj->semaphore, portMAX_DELAY );   // Как только произошло прерывание (была разблокировка из ay_timer_handler).
         if ( obj->queue_empty_check() == true ) continue;               // Если в очередях пусто - выходим.
 
-        // Собираем из всех очередей пакет регистр/значение.
-        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {
-            if ( !flag_wait[chip_loop] ) continue;
-            USER_OS_QUEUE_CHECK_WAIT_ITEM( obj->cfg->queue_array[ chip_loop ] );
-            uint32_t count = uxQueueMessagesWaiting( obj->cfg->queue_array[chip_loop] );
-            if ( count != 0 ) {                                                                         // Если для этого чипа очередь не пуста.
-                USER_OS_QUEUE_RECEIVE( obj->cfg->queue_array[ chip_loop ], &buffer[ chip_loop ], 0);    // Достаем этот элемент без ожидания, т.к. точно знаем, что он есть.
-                if ( buffer[ chip_loop ].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
-                    buffer[chip_loop].reg = 17;             // Если этот чип уже неактивен, то пишем во внешний регистр (пустоту). Сейчас и далее.
-                    flag_wait[chip_loop] = true;            // Защищаем эту очередь от последущего считывания в этом прерывании.
-                } else if ( buffer[chip_loop].reg == 7){    // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
-                    obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
+        while ( obj->chack_flag_wait( flag_wait ) ) {
+            // Собираем из всех очередей пакет регистр/значение.
+            for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ ) {
+                if ( flag_wait[chip_loop] ) continue;
+                USER_OS_QUEUE_CHECK_WAIT_ITEM( obj->cfg->queue_array[ chip_loop ] );
+                uint32_t count = uxQueueMessagesWaiting( obj->cfg->queue_array[chip_loop] );
+                if ( count != 0 ) {                                                                         // Если для этого чипа очередь не пуста.
+                    USER_OS_QUEUE_RECEIVE( obj->cfg->queue_array[ chip_loop ], &buffer[ chip_loop ], 0 );   // Достаем этот элемент без ожидания, т.к. точно знаем, что он есть.
+                    if ( buffer[ chip_loop ].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
+                        buffer[chip_loop].reg = 17;             // Если этот чип уже неактивен, то пишем во внешний регистр (пустоту). Сейчас и далее.
+                        flag_wait[chip_loop] = true;            // Защищаем эту очередь от последущего считывания в этом прерывании.
+                    } else if ( buffer[chip_loop].reg == 7) {   // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
+                        obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
+                    }
+                } else {
+                    buffer[chip_loop].reg = 17;
+                    flag_wait[chip_loop] = true;     // Показываем, что в этой очереди закончились элементы.
                 }
-            } else {
-                buffer[chip_loop].reg = 17;
-                flag_wait[chip_loop] = true;     // Показываем, что в этой очереди закончились элементы.
             }
+
+            //**********************************************************************
+            // Собранный пакет раскладываем на регистры и на их значения и отправляем.
+            //**********************************************************************
+            for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
+                obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].reg );
+
+            obj->out_reg();
+            for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
+                obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
+
+            obj->out_data();
         }
-
-        //**********************************************************************
-        // Собранный пакет раскладываем на регистры и на их значения и отправляем.
-        //**********************************************************************
-        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
-            obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].reg );
-
-        obj->out_reg();
-        for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ay_number; chip_loop++ )
-            obj->cfg->p_sr_data[chip_loop] = obj->connection_transformation( chip_loop, buffer[chip_loop].data );
-
-        obj->out_data();
-
         //**********************************************************************
         // В случае, если идет отслеживание секунд воспроизведения, то каждую секунду отдаем симафор.
         //**********************************************************************
         obj->tic_ff++;
-        if ( obj->tic_ff != 50 )                        return;
-        obj->tic_ff = 0;// Если насчитали секунду.
-        if ( obj->cfg->semaphore_sec_out == nullptr )   return;         // Если есть соединение семофором, то отдать его.
-        USER_OS_GIVE_BIN_SEMAPHORE( *obj->cfg->semaphore_sec_out );
+        if ( obj->tic_ff != 50 )                        continue;
+            obj->tic_ff = 0;// Если насчитали секунду.
+        if ( obj->cfg->semaphore_sec_out == nullptr )   continue;         // Если есть соединение семофором, то отдать его.
+            USER_OS_GIVE_BIN_SEMAPHORE( *obj->cfg->semaphore_sec_out );
     }
 }
 

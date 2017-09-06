@@ -137,6 +137,7 @@ private:
 
     // Сбрасывает флаги "паузы" на чипе.
     void reset_flag_wait ( bool* flag_array );
+    bool chack_flag_wait ( bool* flag_array );
 
     /*
      * Этим симафором будем показывать, что пора передать следущую порцию данных.
