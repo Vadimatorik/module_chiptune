@@ -2,6 +2,22 @@
 
 // Массив делителей для формирования совместимых с фортепианными звуками нот.
 
+/*
+// Включить/выключить 1 канал одного из чипов. Через очередь.
+
+void ay_ym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set ) const {
+    if ( set ) {                                                                // Если включить канал.
+        this->cfg->r7_reg[number_ay] &= ~( 1 << channel);
+    } else {
+        this->cfg->r7_reg[number_ay] |= 1 << channel;                                // Если отключить.
+    }
+    ay_queue_struct buf;
+    buf.data = this->cfg->r7_reg[number_ay];
+    buf.reg  = 7;
+    buf.number_chip = number_ay;
+    this->queue_add_element( &buf );    // Выбираем R7.
+}*/
+
 int ay_ym_note::reinit ( uint8_t chip_number ) const {
     ay_queue_struct buf_data;
     buf_data.number_chip  = chip_number;

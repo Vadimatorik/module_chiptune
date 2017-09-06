@@ -124,11 +124,6 @@ private:
     void out_reg    ( void ) const;
     void out_data   ( void ) const;
 
-
-
-    // Включить/выключить 1 канал одного из чипов. Через очередь.
-    void set_channel             ( uint8_t number_ay, uint8_t channel, bool set ) const;
-
     void hardware_clear ( void ) const;     // Очищает все чипы (начальными значениями).
 
     // Метод преобразует байт (который был бы валидным для подключения
