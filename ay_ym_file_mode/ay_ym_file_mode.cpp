@@ -70,7 +70,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
         p = 16;
     }
 
-    for ( uint32_t l_p = p; l_p < file_size; l_p++, p++ ) {
+    uint32_t l_p = p;
+    while ( l_p < file_size ) {
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
@@ -99,6 +100,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
             flag = false;
         };
 
+         l_p++,
+         p++;
     };
 
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
