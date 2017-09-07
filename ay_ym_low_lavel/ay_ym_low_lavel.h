@@ -56,15 +56,14 @@ struct ay_ym_low_lavel_cfg_t {
     // Очередь должна содержать ay_low_out_data элементы!!!
     //
     USER_OS_STATIC_QUEUE*           const queue_array;
-    const uint8_t                   ay_number;              // Колличество AY на сдвиговом регистре.
-    const ay_ym_connection_chip_cfg_t* con_cfg;             // Способ подключения каждого чипа.
-    const uint8_t                   task_prio;              // Приоритет задачи-обработчика данных из очереди.
+    const uint8_t                   ay_number;                                  // Колличество AY на сдвиговом регистре.
+    const ay_ym_connection_chip_cfg_t* con_cfg;                                 // Способ подключения каждого чипа.
+    const uint8_t                   task_prio;                                  // Приоритет задачи-обработчика данных из очереди.
 
-    uint8_t*                        const r7_reg;               // Текущее состояние управляющего регистра r7 каждого чипа (массив по количеству чипов).
-
-    tim_comp_one_channel_base*      const tim_frequency_ay;     // Таймер, который генерирует необходимую частоту для генерации сигнала чипов (соединение в параллель) (~1.75 МГц по-умолчанию).
-                                                                // Должен быть заранее инициализирован.
-    tim_interrupt_base*             const tim_interrupt_task;   // Таймер, который генерирует прерывания для ay_low_lavel.
+    tim_comp_one_channel_base*      const tim_frequency_ay;                     // Таймер, который генерирует необходимую частоту для генерации сигнала чипов (соединение в параллель) (~1.75 МГц по-умолчанию).
+                                                                                // Должен быть заранее инициализирован.
+    tim_interrupt_base*             const tim_interrupt_task;                   // Таймер, который генерирует прерывания для ay_low_lavel.
+    void    ( *pwr_set )            ( bool state );                             // false - выключить. true - включить. Для всех чипов и усилителя.
 };
 
 
@@ -82,7 +81,11 @@ struct ay_queue_struct {
     uint8_t     data;
 };
 
-#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE             400
+struct __attribute__( ( packed ) ) chip_reg {
+    uint8_t reg[16];
+};
+
+#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE             1000
 
 // Очередь должна быть как минимум 1 элемент (в идеале - по 16*2 b и более для каждого чипа).
 // Очердь общая для все чипов!
@@ -133,6 +136,8 @@ private:
     // линиями.
     uint8_t connection_transformation ( const uint8_t chip, const uint8_t& data ) const;
 
+    void send_buffer ( void ) const;
+
     static void task ( void* p_this );
 
     // Сбрасывает флаги "паузы" на чипе.
@@ -152,9 +157,7 @@ private:
     USER_OS_STATIC_STACK_TYPE           task_stack[ AY_YM_LOW_LAVEL_TASK_STACK_SIZE ] = { 0 };
     USER_OS_STATIC_TASK_STRUCT_TYPE     task_struct;
 
-    /*
-     * Далее все сделано так, чтобы можно было поддерживать до 32 AY/YM чипов.
-     */
-
     uint8_t tic_ff      = 0;                         // Считаем время воспроизведения (колличество прерываний).
+
+    chip_reg*                           buf_data_chip = nullptr;                        // Массив структур данных регистров.
 };

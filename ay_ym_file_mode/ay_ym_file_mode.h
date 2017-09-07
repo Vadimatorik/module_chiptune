@@ -9,6 +9,8 @@ struct ay_ym_file_mode_struct_cfg_t {
     ay_ym_low_lavel*            ay_hardware;
     USER_OS_STATIC_MUTEX*       microsd_mutex;                 // Для эксклюзивного доступа к microsd (создается пользователем заранее).
                                                                // Может быть nullptr, если картой никто не пользуется.
+    void ( *pwr_chip_on )       ( uint32_t chip, bool state ); // chip - номер чипа, который следует включить/выключить. state == true - включить.
+    // ВАЖНО! ay_low может полностью обесточивать всю аналоговую часть. Тут же управление конкретными чипами!
 };
 
 enum class EC_AY_FILE_MODE {

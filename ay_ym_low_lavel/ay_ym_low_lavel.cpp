@@ -2,7 +2,7 @@
 
 ay_ym_low_lavel::ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {
     this->semaphore = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
-    memset( this->cfg->r7_reg, 0b111111,  this->cfg->ay_number );         // Все чипы отключены.
+    this->buf_data_chip          = new chip_reg[ this->cfg->ay_number ];
     USER_OS_STATIC_TASK_CREATE( this->task, "ay_low", AY_YM_LOW_LAVEL_TASK_STACK_SIZE, ( void* )this, this->cfg->task_prio, this->task_stack, &this->task_struct );
 }
 
@@ -13,7 +13,6 @@ ay_ym_low_lavel::ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cf
  * Предполагается, что туда уже положили значения регистров для каждого AY/YM.
  * BDIR и BC1 дергаются так, чтобы произошел выбор регистра.
  */
-
 void ay_ym_low_lavel::out_reg ( void ) const {
     if ( this->cfg->mutex != nullptr)
         USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
@@ -47,12 +46,10 @@ void ay_ym_low_lavel::out_data ( void ) const {
 }
 
 void ay_ym_low_lavel::full_clear ( void ) const {
-    this->cfg->tim_interrupt_task->off();
     for ( int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ ) {
         USER_OS_QUEUE_RESET( this->cfg->queue_array[ chip_loop ] );
     }
     this->hardware_clear();
-    this->cfg->tim_frequency_ay->off();
 }
 
 //**********************************************************************
@@ -95,38 +92,14 @@ void ay_ym_low_lavel::hardware_clear ( void ) const {
     // В каждом AY необходимо в регистр R7 положить 0b111111 (чтобы остановить генерацию звука и шумов).
     // А во все остальные регистры 0.
     //**********************************************************************
-    // Сохраняем во внутреннее хранилище новое сосотояние всех чипов.
-    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
-        this->cfg->r7_reg[loop_ay] = 0b111111;
-
-    // Во всех чипах выбираем 7-й регистр (регистр управления).
-    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
-        this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, 7 );
-    this->out_reg();
-
-    // Во все 7-е регистры кладем команду отключения всех шумов и звуков на каналах.
-    for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
-        this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, 0b111111 );
-    this->out_data();
-
-
-    for (int l = 0; l<7; l++) {            // 0..6 регистры заполняются 0-ми.
-        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
-            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, l );
-        this->out_reg();
-
-        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number );   // В 0-ле нечего переставлять :), так что connection_transformation не используется.
-        this->out_data();
-    };
-
-    for (int l = 8; l<0xF; l++){            // 8..15 регистры заполняются 0-ми.
-        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
-            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, l );
-        this->out_reg();
-
-        memset( this->cfg->p_sr_data, 0,  this->cfg->ay_number );   // В 0-ле нечего переставлять :), так что connection_transformation не используется.
-        this->out_data();
-    };
+    for ( uint32_t loop_chip = 0; loop_chip < this->cfg->ay_number; loop_chip++ ) {
+        for ( uint32_t reg_l = 0; reg_l < 7; reg_l++ )
+            this->buf_data_chip[ loop_chip ].reg[ reg_l ] = 0;
+        this->buf_data_chip[ loop_chip ].reg[ 7 ] = 0b111111;
+        for ( uint32_t reg_l = 8; reg_l < 16; reg_l++ )
+            this->buf_data_chip[ loop_chip ].reg[ reg_l ] = 0;
+     }
+    this->send_buffer();
 }
 
 // Производим перестоновку бит в байте (с учетом реального подключения.
@@ -151,6 +124,20 @@ bool ay_ym_low_lavel::chack_flag_wait ( bool* flag_array ) {
     return false;
 }
 
+// Отправляем данные на все чипы из буфера.
+// Это нужно либо для очистки (когда буфер пуст изначально), либо для восстановления после паузы.
+void ay_ym_low_lavel::send_buffer ( void ) const {
+    for ( uint32_t reg_loop = 0; reg_loop < 16; reg_loop++ ) {
+        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, reg_loop );
+        this->out_reg();
+
+        for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ )
+            this->cfg->p_sr_data[ loop_ay ] = this->connection_transformation( loop_ay, this->buf_data_chip[ loop_ay ].reg[ reg_loop ] );
+        this->out_data();
+    }
+}
+
 //**********************************************************************
 // Данный поток будет выдавать из очереди 50 раз
 // в секунду данные (данные разделяются 0xFF).
@@ -161,7 +148,6 @@ void ay_ym_low_lavel::task ( void* p_this ) {
     ay_ym_low_lavel*            obj = ( ay_ym_low_lavel* ) p_this;
     ay_low_out_data_struct      buffer[ obj->cfg->ay_number ];          // Буфер для адрес/команда для всех чипов.
     bool                        flag_wait[ obj->cfg->ay_number ];       // True - в этом прерывании уже не обрабатываем эту очередь.
-    obj->hardware_clear();                                              // Важно очистить чипы полностью без использования очереди.
 
     while( true ) {
         obj->reset_flag_wait( flag_wait );                              // Новое прерывание, все флаги можно сбросить.
@@ -179,8 +165,8 @@ void ay_ym_low_lavel::task ( void* p_this ) {
                     if ( buffer[ chip_loop ].reg == 0xFF ) {    // Если это флаг того, что далее читать можно лишь в следущем прерывании,...
                         buffer[chip_loop].reg = 17;             // Если этот чип уже неактивен, то пишем во внешний регистр (пустоту). Сейчас и далее.
                         flag_wait[chip_loop] = true;            // Защищаем эту очередь от последущего считывания в этом прерывании.
-                    } else if ( buffer[chip_loop].reg == 7) {   // Сохраняем состояние 7-го регситра разрешения генерации звука и шумов. Чтобы в случае паузы было что вернуть. После затирания 0b111111 (отключить генерацию всего).
-                        obj->cfg->r7_reg[chip_loop] =  buffer[chip_loop].data;
+                    } else {    // Дублируем в памяти данные чипов.
+                        obj->buf_data_chip[ chip_loop ].reg[ buffer[ chip_loop ].reg ] =  buffer[chip_loop].data;
                     }
                 } else {
                     buffer[chip_loop].reg = 17;
@@ -213,20 +199,13 @@ void ay_ym_low_lavel::task ( void* p_this ) {
 
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
 void ay_ym_low_lavel::play_state_set ( uint8_t state ) const {
-    memset( this->cfg->p_sr_data, 7,  this->cfg->ay_number );           // В любом случае писать будем в R7.
-    this->out_reg();
-
+    this->cfg->pwr_set( state );
     if ( state == 1 ) {
         this->cfg->tim_frequency_ay->on();
         this->cfg->tim_interrupt_task->on();
-        for ( int loop_ay = 0; loop_ay < this->cfg->ay_number; loop_ay++ ) {        // Возвращаем состояние всех AY.
-             this->cfg->p_sr_data[loop_ay] = this->cfg->r7_reg[loop_ay];
-        };
-        this->out_data();
+        this->send_buffer();                                            // Восстанавливаем контекст.
     } else {
         this->cfg->tim_interrupt_task->off();
         this->cfg->tim_frequency_ay->off();
-        memset( this->cfg->p_sr_data, 0b111111,  this->cfg->ay_number );
-        this->out_data();
     };
 }
