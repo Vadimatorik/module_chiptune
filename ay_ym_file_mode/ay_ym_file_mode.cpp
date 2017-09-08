@@ -74,9 +74,9 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
         p = 16;
     }
 
-    uint32_t l_p = p;
     bool flag_fe    = false;                          // Выставляется, если у нас был FE.
-    while ( l_p < file_size ) {
+
+    for ( uint32_t l_p = p; l_p < file_size; l_p++, p++ ) {
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
@@ -100,8 +100,6 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
             for ( uint32_t loop_pause_interrupt = b[p] * 4; loop_pause_interrupt != 0; loop_pause_interrupt-- )
                 this->cfg->ay_hardware->queue_add_element( &bq );
             flag_fe = false;
-            l_p++,
-            p++;
             continue;
         }
 
@@ -128,9 +126,6 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
             this->cfg->ay_hardware->queue_add_element( &bq );
             flag = false;
         };
-
-         l_p++,
-         p++;
     };
 
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
@@ -173,9 +168,11 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
         return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
     }
 
+    bool flag_fe    = false;                                    // Выставляется, если у нас был FE.
+
     uint8_t b[512];                                             // Буффер на 512 элементов.
     // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
-    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++ ) {
+    for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p++, l-- ) {
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
             if ( f_read( &file_psg, b, 512, &l ) != FR_OK ) {
                 f_close( &file_psg );
@@ -185,15 +182,24 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
                 p = 0;
             } else {                                            // В случае первого чтения.
                 p = 16;                                         // Пропускаем заголовок, по-этому, сразу отнимаем.
-                l-=16;
+                l -= 16;
                 flag_one_read = 1;
             }
         }
-        if ( b[p] == 0xFF ) {
-            result_long++;                                      // Если нашли 0xFF - то это пауза. => 20 мс.
+
+        if ( flag_fe == true ) {
+            result_long += b[p] * 4;
+            flag_fe = false;
+            continue;
         }
-        p++;
-        l--;
+
+        switch ( b[p] ) {
+        case 0xFF:  result_long++;                                      // Если нашли 0xFF - то это пауза. => 20 мс.
+                    break;
+
+        case 0xFE:  flag_fe = true;
+                    break;
+        }
     };
 
     f_close( &file_psg );                                       // Закрываем файл.
