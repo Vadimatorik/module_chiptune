@@ -49,7 +49,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
 
     // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
     this->cfg->ay_hardware->play_state_set( 1 );
-    this->cfg->ay_hardware->full_clear();
+    this->cfg->ay_hardware->hardware_clear();
+    this->cfg->ay_hardware->queue_clear();
     this->clear_chip( number_chip );                    // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
     ay_queue_struct     bq = { number_chip, 0, 0 };     // Буффер для одного элемента очереди.
@@ -80,7 +81,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
-                this->cfg->ay_hardware->full_clear(); // Очищаем AY, очереди. Потом отключаем его.
+                this->cfg->ay_hardware->hardware_clear();
+                this->cfg->ay_hardware->queue_clear();
                 return EC_AY_FILE_MODE::OK;
             }
         };
@@ -129,7 +131,8 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
     };
 
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
-    this->cfg->ay_hardware->full_clear();                               // Очищаем AY, очереди.
+    this->cfg->ay_hardware->hardware_clear();
+    this->cfg->ay_hardware->queue_clear();
     this->cfg->ay_hardware->play_state_set( 0 );                        // Потом отключаем усилок и чипы.
     this->cfg->pwr_chip_on( number_chip, false );                       // Конкретный чип для галочки тоже.
 

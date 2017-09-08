@@ -45,11 +45,10 @@ void ay_ym_low_lavel::out_data ( void ) const {
         USER_OS_GIVE_MUTEX( *this->cfg->mutex );
 }
 
-void ay_ym_low_lavel::full_clear ( void ) const {
+void ay_ym_low_lavel::queue_clear ( void ) const {
     for ( int chip_loop = 0; chip_loop <  this->cfg->ay_number; chip_loop++ ) {
         USER_OS_QUEUE_RESET( this->cfg->queue_array[ chip_loop ] );
     }
-    this->hardware_clear();
 }
 
 //**********************************************************************
