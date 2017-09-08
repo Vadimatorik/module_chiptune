@@ -75,6 +75,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
     }
 
     uint32_t l_p = p;
+    bool flag_fe    = false;                          // Выставляется, если у нас был FE.
     while ( l_p < file_size ) {
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
@@ -91,16 +92,39 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
             p = 0;
         }
 
-        if ( flag == false ) {
-            if ( b[p] == 0xFF ) {                                        // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
-                bq.reg = 0xFF;
+        // Проверка на флаг 0xFE.
+        // Байт, следующий за 0FEh, помноженный на 4 даст количество
+        // прерываний, в течении которых не было вывода на сопроцессор.
+        if ( flag_fe == true ) {
+            bq.reg = 0xFF;
+            for ( uint32_t loop_pause_interrupt = b[p] * 4; loop_pause_interrupt != 0; loop_pause_interrupt-- )
                 this->cfg->ay_hardware->queue_add_element( &bq );
-            } else {
-                bq.reg = b[p];                                           // Регистр мы просто записываем. Но не отправляем в очередь.
-                flag = true;
+            flag_fe = false;
+            l_p++,
+            p++;
+            continue;
+        }
+
+        if ( flag == false ) {
+            switch ( b[p] ) {
+
+            // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
+            case 0xFF:  bq.reg = 0xFF;
+                        this->cfg->ay_hardware->queue_add_element( &bq );
+                        break;
+
+            case 0xFE:  flag_fe = true;
+                        break;
+
+            default:    bq.reg = b[p];                                           // Регистр мы просто записываем. Но не отправляем в очередь.
+                        flag = true;
+                        break;
             }
         } else {
-            bq.data = b[p];                                              // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
+            // Т.к. этот метод рассчитан только на 1 какой-то чип, то мы принимаем данные только для 0..15 регистра.
+            if ( bq.reg < 16 ) {
+                bq.data = b[p];                                          // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
+            }
             this->cfg->ay_hardware->queue_add_element( &bq );
             flag = false;
         };
