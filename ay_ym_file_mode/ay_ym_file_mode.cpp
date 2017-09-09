@@ -38,12 +38,12 @@ void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
+EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
     FRESULT             r;
     FIL                 file;
     r = f_open( &file, full_name_file, FA_OPEN_EXISTING | FA_READ );
     if ( r != FR_OK ) {
-        return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+        return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
     this->cfg->pwr_chip_on( number_chip, true );        // Включаем питание.
 
@@ -66,7 +66,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
     UINT    l;
     r =  f_read( &file, b, 512, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
     if ( r != FR_OK )
-        return EC_AY_FILE_MODE::READ_FILE_ERROR;
+        return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
 
     // Проверка наличия стартового байта.
     if ( ( b[16] == 0xfe ) | ( b[16] == 0xff ) ) {
@@ -83,14 +83,14 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
                 this->emergency_team = 0;             // Мы приняли задачу.
                 this->cfg->ay_hardware->hardware_clear();
                 this->cfg->ay_hardware->queue_clear();
-                return EC_AY_FILE_MODE::OK;
+                return EC_AY_FILE_MODE_ANSWER::TRACK_STOPPED;
             }
         };
 
         if ( p == 512 ) {
             r =  f_read( &file, b, 512, &l );
             if ( r != FR_OK )
-                return EC_AY_FILE_MODE::READ_FILE_ERROR;
+                return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
             p = 0;
         }
 
@@ -136,7 +136,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
     this->cfg->ay_hardware->play_state_set( 0 );                        // Потом отключаем усилок и чипы.
     this->cfg->pwr_chip_on( number_chip, false );                       // Конкретный чип для галочки тоже.
 
-    return EC_AY_FILE_MODE::OK;
+    return EC_AY_FILE_MODE_ANSWER::TRACK_END;
 }
 
 
@@ -151,12 +151,12 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t n
 // ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
 // Как вариант - на момент создания списка - использовать кольцевой буффер.
 //**********************************************************************
-EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& result_long ) {
+EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& result_long ) {
     FIL         file_psg;
 
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
     if ( f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK )
-        return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+        return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
 
                 result_long     = 0;
     uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
@@ -168,7 +168,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
 
     if ( file_size < 16 ) {                                     // Если помимо заголовка ничего нет - выходим.
         f_close( &file_psg );
-        return EC_AY_FILE_MODE::OPEN_FILE_ERROR;
+        return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
 
     bool flag_fe    = false;                                    // Выставляется, если у нас был FE.
@@ -179,7 +179,7 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
             if ( f_read( &file_psg, b, 512, &l ) != FR_OK ) {
                 f_close( &file_psg );
-                return EC_AY_FILE_MODE::READ_FILE_ERROR;
+                return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
             };
             if ( flag_one_read != 0 ) {                         // Если чтение не первое.
                 p = 0;
@@ -206,5 +206,5 @@ EC_AY_FILE_MODE ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& resul
     };
 
     f_close( &file_psg );                                       // Закрываем файл.
-    return EC_AY_FILE_MODE::OK;
+    return EC_AY_FILE_MODE_ANSWER::OK;
 }
