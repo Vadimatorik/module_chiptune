@@ -41,7 +41,13 @@ void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
 EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
     FRESULT             r;
     FIL                 file;
+
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
     r = f_open( &file, full_name_file, FA_OPEN_EXISTING | FA_READ );
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+
     if ( r != FR_OK ) {
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
@@ -64,7 +70,12 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
     // Вытягиваем первый блок данных.
     uint8_t b[512];
     UINT    l;
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
     r =  f_read( &file, b, 512, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+
     if ( r != FR_OK )
         return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
 
@@ -88,7 +99,12 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
         };
 
         if ( p == 512 ) {
+            if ( this->cfg->microsd_mutex != nullptr )
+                USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
             r =  f_read( &file, b, 512, &l );
+            if ( this->cfg->microsd_mutex != nullptr )
+                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+
             if ( r != FR_OK )
                 return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
             p = 0;
@@ -153,10 +169,19 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
 //**********************************************************************
 EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& result_long ) {
     FIL         file_psg;
-
+    FRESULT     r;
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
-    if ( f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ ) != FR_OK )
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+
+    r = f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ );
+
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+
+    if ( r != FR_OK ) {
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
+    }
 
                 result_long     = 0;
     uint8_t     flag_one_read   = 0;     // Флаг первого чтения. Чтобы сразу перескачить заголовок.
@@ -167,7 +192,11 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t
     uint32_t    file_size = f_size( &file_psg );                // Полный размер файла (всего).
 
     if ( file_size < 16 ) {                                     // Если помимо заголовка ничего нет - выходим.
+        if ( this->cfg->microsd_mutex != nullptr )
+            USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
         f_close( &file_psg );
+        if ( this->cfg->microsd_mutex != nullptr )
+            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
 
@@ -177,8 +206,19 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t
     // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
     for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p++, l-- ) {
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
-            if ( f_read( &file_psg, b, 512, &l ) != FR_OK ) {
+            if ( this->cfg->microsd_mutex != nullptr )
+                USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+            r = f_read( &file_psg, b, 512, &l );
+            if ( this->cfg->microsd_mutex != nullptr )
+                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+
+
+            if ( r != FR_OK ) {
+                if ( this->cfg->microsd_mutex != nullptr )
+                    USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
                 f_close( &file_psg );
+                if ( this->cfg->microsd_mutex != nullptr )
+                    USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
                 return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
             };
             if ( flag_one_read != 0 ) {                         // Если чтение не первое.
@@ -205,6 +245,10 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t
         }
     };
 
-    f_close( &file_psg );                                       // Закрываем файл.
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+    f_close( &file_psg );
+    if ( this->cfg->microsd_mutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );                                       // Закрываем файл.
     return EC_AY_FILE_MODE_ANSWER::OK;
 }
