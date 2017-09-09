@@ -2,7 +2,6 @@
 
 ay_ym_low_lavel::ay_ym_low_lavel ( const ay_ym_low_lavel_cfg_t* const cfg ) : cfg( cfg ) {
     this->semaphore = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->semaphore_buf );
-    this->buf_data_chip          = new chip_reg[ this->cfg->ay_number ];
     USER_OS_STATIC_TASK_CREATE( this->task, "ay_low", AY_YM_LOW_LAVEL_TASK_STACK_SIZE, ( void* )this, this->cfg->task_prio, this->task_stack, &this->task_struct );
 }
 
@@ -147,6 +146,8 @@ void ay_ym_low_lavel::task ( void* p_this ) {
     ay_ym_low_lavel*            obj = ( ay_ym_low_lavel* ) p_this;
     ay_low_out_data_struct      buffer[ obj->cfg->ay_number ];          // Буфер для адрес/команда для всех чипов.
     bool                        flag_wait[ obj->cfg->ay_number ];       // True - в этом прерывании уже не обрабатываем эту очередь.
+    chip_reg buf_data_chip[ obj->cfg->ay_number ];
+    obj->buf_data_chip          = buf_data_chip;
 
     while( true ) {
         obj->reset_flag_wait( flag_wait );                              // Новое прерывание, все флаги можно сбросить.
