@@ -86,8 +86,8 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
         p = 16;
     }
 
-    bool flag_fe    = false;                          // Выставляется, если у нас был FE.
-
+    bool flag_fe            = false;                  // Выставляется, если у нас был FE.
+    bool flag_no_ay_data    = false;                  // Выставляется, если решили записать в регистры не AY.
     for ( uint32_t l_p = p; l_p < file_size; l_p++, p++ ) {
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
@@ -121,6 +121,13 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
             continue;
         }
 
+        // Если данные в несуществующий регистр (кому-то помимо AY.
+        if ( flag_no_ay_data == true ) {
+            flag_no_ay_data = false;
+            continue;
+        }
+
+
         if ( flag == false ) {
             switch ( b[p] ) {
 
@@ -132,15 +139,16 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
             case 0xFE:  flag_fe = true;
                         break;
 
-            default:    bq.reg = b[p];                                           // Регистр мы просто записываем. Но не отправляем в очередь.
-                        flag = true;
+            default:    if ( b[p] < 16 ) {
+                            bq.reg = b[p];                                           // Регистр мы просто записываем. Но не отправляем в очередь.
+                            flag = true;
+                        } else {
+                            flag_no_ay_data = true; // Эти данные не к нам.
+                        }
                         break;
             }
         } else {
-            // Т.к. этот метод рассчитан только на 1 какой-то чип, то мы принимаем данные только для 0..15 регистра.
-            if ( bq.reg < 16 ) {
-                bq.data = b[p];                                          // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
-            }
+            bq.data = b[p];                                             // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
             this->cfg->ay_hardware->queue_add_element( &bq );
             flag = false;
         };
