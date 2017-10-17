@@ -216,10 +216,14 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
             if ( this->cfg->microsd_mutex != nullptr )
                 USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
-            r = f_read( &file_psg, b, 512, &l );
+            int l_read = 10;
+            while ( l_read != 0 ) {
+                r = f_read( &file_psg, b, 512, &l );
+                l_read--;
+                if ( r == FR_OK ) break;
+            }
             if ( this->cfg->microsd_mutex != nullptr )
                 USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
-
 
             if ( r != FR_OK ) {
                 if ( this->cfg->microsd_mutex != nullptr )
