@@ -1,8 +1,8 @@
 #pragma once
 
 #include "module_shift_register.h"
-#include "mk_hardware_interfaces_timer.h"
-#include "mk_hardware_interfaces_pin.h"
+#include "mc_hardware_interfaces_timer.h"
+#include "mc_hardware_interfaces_pin.h"
 #include "user_os.h"
 #include "string.h"
 
