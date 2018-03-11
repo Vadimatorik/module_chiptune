@@ -55,7 +55,7 @@ struct ay_ym_low_lavel_cfg_t {
     // Здесь указатель на массив указателей на эти очереди.
     // Очередь должна содержать ay_low_out_data элементы!!!
     //
-    USER_OS_STATIC_QUEUE*           const queue_array;
+	USER_OS_STATIC_QUEUE*           queue_array;
     const uint8_t                   ay_number;                                  // Колличество AY на сдвиговом регистре.
     const ay_ym_connection_chip_cfg_t* con_cfg;                                 // Способ подключения каждого чипа.
     const uint8_t                   task_prio;                                  // Приоритет задачи-обработчика данных из очереди.
