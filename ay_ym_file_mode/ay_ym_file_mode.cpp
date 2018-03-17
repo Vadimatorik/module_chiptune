@@ -208,20 +208,34 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
 
-    bool flag_fe    = false;                                    // Выставляется, если у нас был FE.
+    bool flag_fe    = false;                                // Выставляется, если у нас был FE.
 
-    uint8_t b[512];                                             // Буффер на 512 элементов.
+    uint8_t		b[512];                                     // Буффер на 512 элементов.
+
+    /// Если упадет чтение, откуда переоткрыть файл.
+    FSIZE_t		lseek	= 0;
+
     // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
     for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p++, l-- ) {
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
             if ( this->cfg->microsd_mutex != nullptr )
                 USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+
             int l_read = 10;
             while ( l_read != 0 ) {
                 r = f_read( &file_psg, b, 512, &l );
                 if ( r == FR_OK ) break;
                 l_read--;
+
+                r = f_close( &file_psg );
+                r = f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ );
+                if ( r != FR_OK ) continue;
+                r = f_lseek( &file_psg, lseek );
+                if ( r != FR_OK ) continue;
             }
+
+            lseek += 512;
+
             if ( this->cfg->microsd_mutex != nullptr )
                 USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
 
