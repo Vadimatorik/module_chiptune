@@ -1,8 +1,8 @@
 #include "ay_ym_file_mode.h"
 
-AyYmFileMode::AyYmFileMode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {}
+AyYmFileMode::AyYmFileMode ( ayYmFileModeCfg* cfg ) : cfg( cfg ) {}
 
-void AyYmFileMode::clear_chip ( uint8_t chip_number ) {
+void AyYmFileMode::clearChip ( uint8_t chip_number ) {
     ayQueueStruct buf;
     buf.numberChip         = chip_number;
 
@@ -10,54 +10,54 @@ void AyYmFileMode::clear_chip ( uint8_t chip_number ) {
     buf.reg                 = 7;
     buf.data                = 0b111111;
 
-    this->cfg->ay_hardware->queueAddElement( &buf );
+    this->cfg->ay->queueAddElement( &buf );
 
     buf.data                = 0;
     for ( uint32_t l = 0; l<7; l++ ) {          // Очищаем первые 7 регистров.
         buf.reg = l;
-        this->cfg->ay_hardware->queueAddElement( &buf );
+        this->cfg->ay->queueAddElement( &buf );
     }
 
     for ( uint32_t l = 8; l < 16; l++ ) {       // Остальные.
         buf.reg = l;
-        this->cfg->ay_hardware->queueAddElement( &buf );
+        this->cfg->ay->queueAddElement( &buf );
     }
 }
 
 // Останавливаем трек и чистим буфер
 // (завершает метод psg_file_play из другого потока).
-void AyYmFileMode::psg_file_stop ( void ) {
+void AyYmFileMode::psgFileStop ( void ) {
     this->emergency_team = 1;
 }
 
 // Ждем, пока все данные из очереди будут переданы.
-void AyYmFileMode::ay_delay_ay_low_queue_clean ( void ) {
-    while( this->cfg->ay_hardware->queueEmptyCheck() != true ) {           // Ждем, пока AY освободится.
+void AyYmFileMode::ayDelayLowQueueClean ( void ) {
+    while( this->cfg->ay->queueEmptyCheck() != true ) {           // Ждем, пока AY освободится.
         USER_OS_DELAY_MS(20);
     }
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
+EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFilePlay ( char* full_name_file, uint8_t number_chip ) {
     FRESULT             r;
     FIL                 file;
 
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
     r = f_open( &file, full_name_file, FA_OPEN_EXISTING | FA_READ );
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
 
     if ( r != FR_OK ) {
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
-    this->cfg->pwr_chip_on( number_chip, true );        // Включаем питание.
+    this->cfg->pwrChipOn( number_chip, true );        // Включаем питание.
 
     // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
-    this->cfg->ay_hardware->playStateSet( 1 );
-    this->cfg->ay_hardware->hardwareClear();
-    this->cfg->ay_hardware->queueClear();
-    this->clear_chip( number_chip );                    // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
+    this->cfg->ay->playStateSet( 1 );
+    this->cfg->ay->hardwareClear();
+    this->cfg->ay->queueClear();
+    this->clearChip( number_chip );                    // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
     ayQueueStruct     bq = { number_chip, 0, 0 };     // Буффер для одного элемента очереди.
 
@@ -70,11 +70,11 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
     // Вытягиваем первый блок данных.
     uint8_t b[512];
     UINT    l;
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
     r =  f_read( &file, b, 512, &l );        // l не проверяем потом, т.к. анализ массива все равно производится на основе длины файла.
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
 
     if ( r != FR_OK )
         return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
@@ -92,18 +92,18 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
-                this->cfg->ay_hardware->hardwareClear();
-                this->cfg->ay_hardware->queueClear();
+                this->cfg->ay->hardwareClear();
+                this->cfg->ay->queueClear();
                 return EC_AY_FILE_MODE_ANSWER::TRACK_STOPPED;
             }
         };
 
         if ( p == 512 ) {
-            if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+            if ( this->cfg->microsdMutex != nullptr )
+                USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
             r =  f_read( &file, b, 512, &l );
-            if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+            if ( this->cfg->microsdMutex != nullptr )
+                USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
 
             if ( r != FR_OK )
                 return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
@@ -116,7 +116,7 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
         if ( flag_fe == true ) {
             bq.reg = 0xFF;
             for ( uint32_t loop_pause_interrupt = b[p] * 4; loop_pause_interrupt != 0; loop_pause_interrupt-- )
-                this->cfg->ay_hardware->queueAddElement( &bq );
+                this->cfg->ay->queueAddElement( &bq );
             flag_fe = false;
             continue;
         }
@@ -133,7 +133,7 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
 
             // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
             case 0xFF:  bq.reg = 0xFF;
-                        this->cfg->ay_hardware->queueAddElement( &bq );
+                        this->cfg->ay->queueAddElement( &bq );
                         break;
 
             case 0xFE:  flag_fe = true;
@@ -149,16 +149,16 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
             }
         } else {
             bq.data = b[p];                                             // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
-            this->cfg->ay_hardware->queueAddElement( &bq );
+            this->cfg->ay->queueAddElement( &bq );
             flag = false;
         };
     };
 
-    this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
-    this->cfg->ay_hardware->hardwareClear();
-    this->cfg->ay_hardware->queueClear();
-    this->cfg->ay_hardware->playStateSet( 0 );                        // Потом отключаем усилок и чипы.
-    this->cfg->pwr_chip_on( number_chip, false );                       // Конкретный чип для галочки тоже.
+    this->ayDelayLowQueueClean();                                // Ждем, пока все данные в AY передадутся.
+    this->cfg->ay->hardwareClear();
+    this->cfg->ay->queueClear();
+    this->cfg->ay->playStateSet( 0 );                        // Потом отключаем усилок и чипы.
+    this->cfg->pwrChipOn( number_chip, false );                       // Конкретный чип для галочки тоже.
 
     return EC_AY_FILE_MODE_ANSWER::TRACK_END;
 }
@@ -175,17 +175,17 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8
 // ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
 // Как вариант - на момент создания списка - использовать кольцевой буффер.
 //**********************************************************************
-EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& result_long ) {
+EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFileGetLong ( char* name, uint32_t& result_long ) {
     FIL         file_psg;
     FRESULT     r;
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
 
     r = f_open( &file_psg, name, FA_OPEN_EXISTING | FA_READ );
 
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
 
     if ( r != FR_OK ) {
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
@@ -200,11 +200,11 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& r
     uint32_t    file_size = f_size( &file_psg );                // Полный размер файла (всего).
 
     if ( file_size < 16 ) {                                     // Если помимо заголовка ничего нет - выходим.
-        if ( this->cfg->microsd_mutex != nullptr )
-            USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+        if ( this->cfg->microsdMutex != nullptr )
+            USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
         f_close( &file_psg );
-        if ( this->cfg->microsd_mutex != nullptr )
-            USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+        if ( this->cfg->microsdMutex != nullptr )
+            USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
         return EC_AY_FILE_MODE_ANSWER::OPEN_FILE_ERROR;
     }
 
@@ -218,8 +218,8 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& r
     // Начинаем с 16-го байта (счет с 0), т.к. первые 16 - заголовок.
     for ( uint32_t loop_byte_file = 16; loop_byte_file < file_size; loop_byte_file++, p++, l-- ) {
         if ( l == 0 ) {                                         // Если байты закончались - считываем еще 512.
-            if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+            if ( this->cfg->microsdMutex != nullptr )
+                USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
 
             int l_read = 10;
             while ( l_read != 0 ) {
@@ -236,15 +236,15 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& r
 
             lseek += 512;
 
-            if ( this->cfg->microsd_mutex != nullptr )
-                USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+            if ( this->cfg->microsdMutex != nullptr )
+                USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
 
             if ( r != FR_OK ) {
-                if ( this->cfg->microsd_mutex != nullptr )
-                    USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+                if ( this->cfg->microsdMutex != nullptr )
+                    USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
                 f_close( &file_psg );
-                if ( this->cfg->microsd_mutex != nullptr )
-                    USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );
+                if ( this->cfg->microsdMutex != nullptr )
+                    USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );
                 return EC_AY_FILE_MODE_ANSWER::READ_FILE_ERROR;
             };
             if ( flag_one_read != 0 ) {                         // Если чтение не первое.
@@ -271,10 +271,10 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& r
         }
     };
 
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_TAKE_MUTEX( *this->cfg->microsd_mutex, portMAX_DELAY );
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
     f_close( &file_psg );
-    if ( this->cfg->microsd_mutex != nullptr )
-        USER_OS_GIVE_MUTEX( *this->cfg->microsd_mutex );                                       // Закрываем файл.
+    if ( this->cfg->microsdMutex != nullptr )
+        USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );                                       // Закрываем файл.
     return EC_AY_FILE_MODE_ANSWER::OK;
 }
