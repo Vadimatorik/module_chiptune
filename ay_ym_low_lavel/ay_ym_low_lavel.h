@@ -93,16 +93,18 @@ class AyYmLowLavel {
 public:
 	AyYmLowLavel ( const ayYmLowLavelCfg* const cfg );
 
+	void	init							( void );
+
 	// Добавляет элемент в очередь. Элемент будет выдан в АУ во время прерывания.
-	void queueAddElement		( ayQueueStruct* data );
+	void	queueAddElement					( ayQueueStruct* data );
 
 	// Метод для приостановки воспроизвдеения и последущего возобновления с того же места.
-	void playStateSet			( uint8_t state );
+	void	playStateSet					( uint8_t state );
 
 	// Данный handler должен
 	// быть вызван в прерывании по прохождении 50 мс
 	// (частота может быть изменена другими методами, в зависимости от конфигурации воспроизведения).
-	void timerInterruptHandler( void );
+	void	timerInterruptHandler			( void );
 
 	//**********************************************************************
 	// Метод возвращает текущее состояние очередей (всех).
@@ -110,16 +112,14 @@ public:
 	// true	 - все очереди пусты.
 	// false	- хотя бы в одной (в случае нескольких AY) есть данные.
 	//**********************************************************************
-	bool queueEmptyCheck		( void );
+	bool	queueEmptyCheck					( void );
 
-	void hardwareClear ( void );	 // Очищает все чипы (начальными значениями).
-	void queueClear ( void );
+	void	hardwareClear					( void );	 // Очищает все чипы (начальными значениями).
+	void	queueClear						( void );
 
 private:
-	const ayYmLowLavelCfg*			const cfg;
-
-	void		setReg						( void );
-	void		setData						( void );
+	void	setReg							( void );
+	void	setData							( void );
 
 	// Метод преобразует байт (который был бы валидным для подключения
 	// 0-й бит сдвигового регистра = 0-му биту шины AY. В валидный вид с учетом
@@ -135,6 +135,8 @@ private:
 	bool	chackFlagWait	( bool* flagArray );
 
 	static void task		( void* p_this );
+
+	const ayYmLowLavelCfg*			const cfg;
 
 	/*
 	 * Этим симафором будем показывать, что пора передать следущую порцию данных.

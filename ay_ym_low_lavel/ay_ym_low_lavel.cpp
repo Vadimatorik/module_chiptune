@@ -2,9 +2,11 @@
 
 AyYmLowLavel::AyYmLowLavel ( const ayYmLowLavelCfg* const cfg ) : cfg( cfg ) {
 	this->s = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->sb );
-	USER_OS_STATIC_TASK_CREATE( this->task, "ayLow", AY_YM_LOW_LAVEL_TASK_STACK_SIZE, ( void* )this, this->cfg->taskPrio, this->tb, &this->ts );
 }
 
+void AyYmLowLavel::init ( void ) {
+	USER_OS_STATIC_TASK_CREATE( this->task, "ayLow", AY_YM_LOW_LAVEL_TASK_STACK_SIZE, ( void* )this, this->cfg->taskPrio, this->tb, &this->ts );
+}
 
 // Выбираем нужные регистры в AY/YM.
 /*
