@@ -5,7 +5,7 @@
 /*
 // Включить/выключить 1 канал одного из чипов. Через очередь.
 
-void ay_ym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set ) const {
+void ay_ym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set ) {
     if ( set ) {                                                                // Если включить канал.
         this->cfg->r7_reg[number_ay] &= ~( 1 << channel);
     } else {
@@ -18,55 +18,55 @@ void ay_ym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set
     this->queue_add_element( &buf );    // Выбираем R7.
 }*/
 
-int ay_ym_note::reinit ( uint8_t chip_number ) const {
-    ay_queue_struct buf_data;
-    buf_data.number_chip  = chip_number;
-    buf_data.reg = 7;
-    buf_data.data = 0b111000;
-    cfg->array_chip->queue_add_element( &buf_data );
+int AyYmNote::reinit ( uint8_t chipNumber ) {
+	ayQueueStruct bufData;
+	bufData.numberChip  = chipNumber;
+	bufData.reg = 7;
+	bufData.data = 0b111000;
+	cfg->array_chip->queueAddElement( &bufData );
 
     return 0;
 }
 
-int ay_ym_note::write_note_to_channel ( uint8_t chip_number, uint8_t channel, uint8_t note ) const {
+int AyYmNote::write_note_to_channel ( uint8_t chip_number, uint8_t channel, uint8_t note ) {
     uint8_t older_byte  = (uint8_t)( this->array_divider_chip[note] >> 8 );
     uint8_t junior_byte = (uint8_t)this->array_divider_chip[note];
 
-    ay_queue_struct buf_data;
-    buf_data.number_chip  = chip_number;
+    ayQueueStruct buf_data;
+    buf_data.numberChip  = chip_number;
 
     switch( channel ) {      // Записываем ноту в выбранный канал.
     case 0:
             buf_data.reg = 0;  buf_data.data         = junior_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
 
             buf_data.reg = 1;  buf_data.data         = older_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
             break;
 
     case 1:
             buf_data.reg = 2;  buf_data.data         = junior_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
 
             buf_data.reg = 3;  buf_data.data         = older_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
             break;
 
     case 2:
             buf_data.reg = 4;  buf_data.data         = junior_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
 
             buf_data.reg = 5;  buf_data.data         = older_byte;
-            cfg->array_chip->queue_add_element( &buf_data );
+            cfg->array_chip->queueAddElement( &buf_data );
             break;
     }
 
     return 0;
 }
 
-int ay_ym_note::set_volume_channel ( uint8_t chip_number, uint8_t channel, uint8_t volume ) const {
-    ay_queue_struct buf_data;
-    buf_data.number_chip    = chip_number;
+int AyYmNote::set_volume_channel ( uint8_t chip_number, uint8_t channel, uint8_t volume ) {
+    ayQueueStruct buf_data;
+    buf_data.numberChip    = chip_number;
     buf_data.data           = volume;
 
     switch (channel) {
@@ -83,7 +83,7 @@ int ay_ym_note::set_volume_channel ( uint8_t chip_number, uint8_t channel, uint8
             break;
     }
 
-    cfg->array_chip->queue_add_element( &buf_data );
+    cfg->array_chip->queueAddElement( &buf_data );
 
     return 0;
 }

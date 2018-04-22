@@ -1,44 +1,44 @@
 #include "ay_ym_file_mode.h"
 
-ay_ym_file_mode::ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {}
+AyYmFileMode::AyYmFileMode ( ay_ym_file_mode_struct_cfg_t* cfg ) : cfg( cfg ) {}
 
-void ay_ym_file_mode::clear_chip ( uint8_t chip_number ) {
-    ay_queue_struct buf;
-    buf.number_chip         = chip_number;
+void AyYmFileMode::clear_chip ( uint8_t chip_number ) {
+    ayQueueStruct buf;
+    buf.numberChip         = chip_number;
 
     // Отключаем все каналы и шумы.
     buf.reg                 = 7;
     buf.data                = 0b111111;
 
-    this->cfg->ay_hardware->queue_add_element( &buf );
+    this->cfg->ay_hardware->queueAddElement( &buf );
 
     buf.data                = 0;
     for ( uint32_t l = 0; l<7; l++ ) {          // Очищаем первые 7 регистров.
         buf.reg = l;
-        this->cfg->ay_hardware->queue_add_element( &buf );
+        this->cfg->ay_hardware->queueAddElement( &buf );
     }
 
     for ( uint32_t l = 8; l < 16; l++ ) {       // Остальные.
         buf.reg = l;
-        this->cfg->ay_hardware->queue_add_element( &buf );
+        this->cfg->ay_hardware->queueAddElement( &buf );
     }
 }
 
 // Останавливаем трек и чистим буфер
 // (завершает метод psg_file_play из другого потока).
-void ay_ym_file_mode::psg_file_stop ( void ) {
+void AyYmFileMode::psg_file_stop ( void ) {
     this->emergency_team = 1;
 }
 
 // Ждем, пока все данные из очереди будут переданы.
-void ay_ym_file_mode::ay_delay_ay_low_queue_clean ( void ) {
-    while( this->cfg->ay_hardware->queue_empty_check() != true ) {           // Ждем, пока AY освободится.
+void AyYmFileMode::ay_delay_ay_low_queue_clean ( void ) {
+    while( this->cfg->ay_hardware->queueEmptyCheck() != true ) {           // Ждем, пока AY освободится.
         USER_OS_DELAY_MS(20);
     }
 }
 
 // Открываем файл с выбранным именем и воспроизводим его.
-EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
+EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_play ( char* full_name_file, uint8_t number_chip ) {
     FRESULT             r;
     FIL                 file;
 
@@ -54,12 +54,12 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
     this->cfg->pwr_chip_on( number_chip, true );        // Включаем питание.
 
     // Если мы тут, то мы достали название + длину файла из списка, успешно зашли в папку с файлом, открыли его.
-    this->cfg->ay_hardware->play_state_set( 1 );
-    this->cfg->ay_hardware->hardware_clear();
-    this->cfg->ay_hardware->queue_clear();
+    this->cfg->ay_hardware->playStateSet( 1 );
+    this->cfg->ay_hardware->hardwareClear();
+    this->cfg->ay_hardware->queueClear();
     this->clear_chip( number_chip );                    // Обязательно стираем настройки старой мелодии. Чтобы звук по началу не был говном.
 
-    ay_queue_struct     bq = { number_chip, 0, 0 };     // Буффер для одного элемента очереди.
+    ayQueueStruct     bq = { number_chip, 0, 0 };     // Буффер для одного элемента очереди.
 
     bool                flag = false;                   // Чтобы различать, что мы считали. Регистр (0) - или значение (1). Сначала - регистр.
     volatile uint32_t   p = 16;                         // Номер элемента в буффере, из которого мы будем выдавать данные.
@@ -92,8 +92,8 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
         if ( this->emergency_team != 0 ) {            // Если пришла какая-то срочная команда!
             if ( this->emergency_team == 1 ) {        // Если нужно остановить воспроизведение.
                 this->emergency_team = 0;             // Мы приняли задачу.
-                this->cfg->ay_hardware->hardware_clear();
-                this->cfg->ay_hardware->queue_clear();
+                this->cfg->ay_hardware->hardwareClear();
+                this->cfg->ay_hardware->queueClear();
                 return EC_AY_FILE_MODE_ANSWER::TRACK_STOPPED;
             }
         };
@@ -116,7 +116,7 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
         if ( flag_fe == true ) {
             bq.reg = 0xFF;
             for ( uint32_t loop_pause_interrupt = b[p] * 4; loop_pause_interrupt != 0; loop_pause_interrupt-- )
-                this->cfg->ay_hardware->queue_add_element( &bq );
+                this->cfg->ay_hardware->queueAddElement( &bq );
             flag_fe = false;
             continue;
         }
@@ -133,7 +133,7 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
 
             // 0xFF - простая задержка на ~20 мс. Очередь сама разберется, как с ней быть.
             case 0xFF:  bq.reg = 0xFF;
-                        this->cfg->ay_hardware->queue_add_element( &bq );
+                        this->cfg->ay_hardware->queueAddElement( &bq );
                         break;
 
             case 0xFE:  flag_fe = true;
@@ -149,15 +149,15 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
             }
         } else {
             bq.data = b[p];                                             // Теперь, когда у нас есть актуальное значение регистра и данных в него,                                      // кидаем пачку в очередь.
-            this->cfg->ay_hardware->queue_add_element( &bq );
+            this->cfg->ay_hardware->queueAddElement( &bq );
             flag = false;
         };
     };
 
     this->ay_delay_ay_low_queue_clean();                                // Ждем, пока все данные в AY передадутся.
-    this->cfg->ay_hardware->hardware_clear();
-    this->cfg->ay_hardware->queue_clear();
-    this->cfg->ay_hardware->play_state_set( 0 );                        // Потом отключаем усилок и чипы.
+    this->cfg->ay_hardware->hardwareClear();
+    this->cfg->ay_hardware->queueClear();
+    this->cfg->ay_hardware->playStateSet( 0 );                        // Потом отключаем усилок и чипы.
     this->cfg->pwr_chip_on( number_chip, false );                       // Конкретный чип для галочки тоже.
 
     return EC_AY_FILE_MODE_ANSWER::TRACK_END;
@@ -175,7 +175,7 @@ EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_play ( char* full_name_file, ui
 // ВАЖНО!: Т.к. метод дочерний, то указатель на буффер ему тоже нужно передать. Причем там должно быть 512 байт.
 // Как вариант - на момент создания списка - использовать кольцевой буффер.
 //**********************************************************************
-EC_AY_FILE_MODE_ANSWER ay_ym_file_mode::psg_file_get_long ( char* name, uint32_t& result_long ) {
+EC_AY_FILE_MODE_ANSWER AyYmFileMode::psg_file_get_long ( char* name, uint32_t& result_long ) {
     FIL         file_psg;
     FRESULT     r;
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.

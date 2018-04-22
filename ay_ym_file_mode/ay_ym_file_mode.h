@@ -1,12 +1,12 @@
 #pragma once
 
+#include "ay_ym_low_lavel.h"            // Для обращения к используемому AY.
 #include "ff.h"                         // FatFS от ChaN.
 #include "user_os.h"                    // Пользовательская OS.
-#include "ay_ym_low_lavel.h"            // Для обращения к используемому AY.
 
 // Структура первоначальной инициализации AY чипа.
 struct ay_ym_file_mode_struct_cfg_t {
-    ay_ym_low_lavel*            ay_hardware;
+    AyYmLowLavel*            ay_hardware;
     USER_OS_STATIC_MUTEX*       microsd_mutex;                 // Для эксклюзивного доступа к microsd (создается пользователем заранее).
                                                                // Может быть nullptr, если картой никто не пользуется.
     void ( *pwr_chip_on )       ( uint32_t chip, bool state ); // chip - номер чипа, который следует включить/выключить. state == true - включить.
@@ -26,9 +26,9 @@ enum class EC_AY_FILE_MODE_ANSWER {
     TRACK_STOPPED,                                          // Трек остановили насильно.
 };
 
-class ay_ym_file_mode {
+class AyYmFileMode {
 public:
-    ay_ym_file_mode ( ay_ym_file_mode_struct_cfg_t* cfg );
+    AyYmFileMode ( ay_ym_file_mode_struct_cfg_t* cfg );
 
     //**********************************************************************
     // Воспроизводим psg файл.
