@@ -178,6 +178,7 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFilePlay ( char* full_name_file, uint8_t
 EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFileGetLong ( char* name, uint32_t& result_long ) {
     FIL         file_psg;
     FRESULT     r;
+
     // Если открыть не удалось - значит либо файла не сущетсвует, либо еще чего.
     if ( this->cfg->microsdMutex != nullptr )
         USER_OS_TAKE_MUTEX( *this->cfg->microsdMutex, portMAX_DELAY );
