@@ -1,5 +1,7 @@
 #include "ay_ym_file_mode.h"
 
+#ifdef MODULE_AY_YM_FILE_MODE_ENABLED
+
 AyYmFileMode::AyYmFileMode ( ayYmFileModeCfg* cfg ) : cfg( cfg ) {}
 
 void AyYmFileMode::clearChip ( uint8_t chip_number ) {
@@ -279,3 +281,5 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFileGetLong ( char* name, uint32_t& resu
         USER_OS_GIVE_MUTEX( *this->cfg->microsdMutex );                                       // Закрываем файл.
     return EC_AY_FILE_MODE_ANSWER::OK;
 }
+
+#endif

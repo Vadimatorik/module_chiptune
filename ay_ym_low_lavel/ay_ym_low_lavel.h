@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef MODULE_AY_YM_LOW_LAVEL_ENABLED
+
 #include "shift_register.h"
 #include "mc_hardware_interfaces_timer.h"
 #include "mc_hardware_interfaces_pin.h"
@@ -155,3 +157,5 @@ private:
 
 	ayChipReg*							buf_data_chip = nullptr;						// Массив структур данных регистров.
 };
+
+#endif

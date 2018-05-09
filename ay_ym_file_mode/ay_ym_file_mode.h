@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef MODULE_AY_YM_FILE_MODE_ENABLED
+
 #include "ay_ym_low_lavel.h"			// Для обращения к используемому AY.
 #include "ff.h"							// FatFS от ChaN.
 #include "user_os.h"					// Пользовательская OS.
@@ -62,6 +64,7 @@ private:
 	bool		emergency_team = false;
 };
 
+#endif
 
 
 

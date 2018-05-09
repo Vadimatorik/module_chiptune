@@ -1,5 +1,7 @@
 #include "ay_ym_note_mode.h"
 
+#ifdef MODULE_AY_YM_NOTE_MODE_ENABLED
+
 // Массив делителей для формирования совместимых с фортепианными звуками нот.
 
 /*
@@ -88,3 +90,4 @@ int AyYmNote::set_volume_channel ( uint8_t chip_number, uint8_t channel, uint8_t
     return 0;
 }
 
+#endif

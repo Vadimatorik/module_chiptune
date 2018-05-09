@@ -1,5 +1,7 @@
 #include "ay_ym_low_lavel.h"
 
+#ifdef MODULE_AY_YM_LOW_LAVEL_ENABLED
+
 AyYmLowLavel::AyYmLowLavel ( const ayYmLowLavelCfg* const cfg ) : cfg( cfg ) {
 	this->s = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->sb );
 }
@@ -211,3 +213,5 @@ void AyYmLowLavel::playStateSet ( uint8_t state ) {
 		this->cfg->timFrequencyAy->off();
 	};
 }
+
+#endif
