@@ -44,6 +44,8 @@ public:
 	EC_AY_FILE_MODE_ANSWER	psgFileGetLong				( char* name,
 														  uint32_t& resultLong );
 
+	void					setPause					( bool state );
+
 private:
 	EC_AY_FILE_MODE_ANSWER	psgPartCopyFromSdToArray	( uint32_t sektor,
 														  uint16_t pointBuffer,

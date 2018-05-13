@@ -89,6 +89,8 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFilePlay ( char* full_name_file, uint8_t
 				this->emergency_team = 0;			 // Мы приняли задачу.
 				this->cfg->ay->hardwareClear();
 				this->cfg->ay->queueClear();
+				this->cfg->ay->playStateSet( 0 );								// Потом отключаем усилок и чипы.
+				this->cfg->pwrChipOn( number_chip, false );						// Конкретный чип для галочки тоже.
 				return EC_AY_FILE_MODE_ANSWER::TRACK_STOPPED;
 			}
 		};
@@ -244,4 +246,10 @@ EC_AY_FILE_MODE_ANSWER AyYmFileMode::psgFileGetLong ( char* name, uint32_t& resu
 	return EC_AY_FILE_MODE_ANSWER::OK;
 }
 
+void AyYmFileMode::setPause ( bool state ) {
+	this->cfg->ay->playStateSet( state );
+}
+
+
 #endif
+
