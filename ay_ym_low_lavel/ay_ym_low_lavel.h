@@ -98,7 +98,7 @@ public:
 	void	init							( void );
 
 	// Добавляет элемент в очередь. Элемент будет выдан в АУ во время прерывания.
-	void	queueAddElement					( ayQueueStruct* data );
+	int		queueAddElement					( ayQueueStruct* data );
 
 	// Метод для приостановки воспроизвдеения и последущего возобновления с того же места.
 	void	playStateSet					( uint8_t state );
@@ -115,6 +115,8 @@ public:
 	// false	- хотя бы в одной (в случае нескольких AY) есть данные.
 	//**********************************************************************
 	bool	queueEmptyCheck					( void );
+
+	void	cleanBufferAyReg				( void );
 
 	void	hardwareClear					( void );	 // Очищает все чипы (начальными значениями).
 	void	queueClear						( void );

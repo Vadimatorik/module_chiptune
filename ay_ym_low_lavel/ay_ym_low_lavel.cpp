@@ -80,16 +80,21 @@ bool AyYmLowLavel::queueEmptyCheck ( void ) {
 // Данные должны быть расположены в формате регистр(16-8 бит)|значение(7-0 бит).
 // Задача выполняется из под FreeRTOS.
 //**********************************************************************
-void AyYmLowLavel::queueAddElement ( ayQueueStruct* item ) {
+int AyYmLowLavel::queueAddElement ( ayQueueStruct* item ) {
 	ayLowOutDataStruct buf;
 	buf.reg	 = item->reg;
 	buf.data	= item->data;
 
-	USER_OS_QUEUE_SEND( this->cfg->queueArray[item->numberChip], &buf, portMAX_DELAY );
+	BaseType_t	resOs;
+
+	/// Пытаемся положить в очередь AY некоторое время.
+	resOs = USER_OS_QUEUE_SEND( this->cfg->queueArray[item->numberChip], &buf, 20 );
+	/// Удалось - хорошо.
+	if ( resOs == pdTRUE ) return 0;
+	return -1;
 }
 
-// Чистим все AY/YM без использования очереди. Предполагается, что при этом никак не может произойти выдача из очереди.
-void AyYmLowLavel::hardwareClear ( void ) {
+void AyYmLowLavel::cleanBufferAyReg ( void ) {
 	//**********************************************************************
 	// В каждом AY необходимо в регистр R7 положить 0b111111 (чтобы остановить генерацию звука и шумов).
 	// А во все остальные регистры 0.
@@ -101,6 +106,11 @@ void AyYmLowLavel::hardwareClear ( void ) {
 		for ( uint32_t reg_l = 8; reg_l < 16; reg_l++ )
 			this->buf_data_chip[ loop_chip ].reg[ reg_l ] = 0;
 	 }
+}
+
+// Чистим все AY/YM без использования очереди. Предполагается, что при этом никак не может произойти выдача из очереди.
+void AyYmLowLavel::hardwareClear ( void ) {
+	this->cleanBufferAyReg();
 	this->sendBuffer();
 }
 
@@ -204,6 +214,9 @@ void AyYmLowLavel::task ( void* p_this ) {
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
 void AyYmLowLavel::playStateSet ( uint8_t state ) {
 	this->cfg->pwrSet( state );
+
+	USER_OS_DELAY_MS( 10 );											/// Ждем стабилизации питания.
+
 	if ( state == 1 ) {
 		this->cfg->timFrequencyAy->on();
 		this->cfg->timInterruptTask->on();
