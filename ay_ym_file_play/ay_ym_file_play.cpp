@@ -34,10 +34,6 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	r	=	this->getFileLen( fileSize );
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Данные начинаются с 16-го байта.
-	r	=	this->setOffsetByteInFile( 16 );
-	CHACK_CALL_FUNC_ANSWER( r );
-
 	/*!
 	 * Далее начинается анализ файла.
 	 */
@@ -45,16 +41,61 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	/// Количество оставшихся байт в файле.
 	uint32_t	countRemainingBytes;
 
-	/// Первые 16 байт - заголовок. Пропускаем.
-	countRemainingBytes = fileSize - 16;
+	/// Данные начинаются с 4-го или 16-го байта.
+	r	=	this->setOffsetByteInFile( 3 );			/// Проверим маркер (3-й байт).
+	CHACK_CALL_FUNC_ANSWER( r );
+
+	/// Првоеряем, полный заголовок или нет.
+	uint8_t		buf;
+	r	=	this->readInArray( &buf, 1 );
+
+	/// Если этот флаг, то заголовок полный
+	/// и данные начинаются с 16-го байта.
+	if ( buf == 0x1A ) {
+		/// Первые 16 байт - заголовок. Пропускаем.
+		countRemainingBytes = fileSize - 16;
+
+		r	=	this->setOffsetByteInFile( 16 );
+		CHACK_CALL_FUNC_ANSWER( r );
+	} else {
+		/// Первые 3 байта заголвок.
+		countRemainingBytes = fileSize - 3;
+	}
+
+	/*!
+	 * Что ожидается увидеть.
+	 * false		-	мы ждем регистр или маркер.
+	 * true			-	данные.
+	 */
+	bool	expectedAppointment	=	false;
 
 	/// Анализируем весь файл.
 	while( countRemainingBytes ) {
 		/// Считываем маркер.
-		uint8_t		buf;
 		r	=	this->readInArray( &buf, 1 );
 		CHACK_CALL_FUNC_ANSWER( r );
 		countRemainingBytes--;
+
+		/*!
+		 * Предыдущий байт был регистром - этот 100% данные.
+		 */
+		if ( expectedAppointment == true ) {
+			expectedAppointment = false;
+
+			/// У нас считан регистр AY или левого устройства.
+			if ( packet.reg < 16 ) {											/// Регистр для AY.
+				packet.data	=	buf;
+				r	=	this->writePacket( packet.reg, packet.data );
+				CHACK_CALL_FUNC_ANSWER( r );
+			} else {
+				static volatile uint32_t b = 0;
+				b++;
+			}
+
+			continue;
+		}
+
+		/// Далее разбираем маркеры или регистр.
 
 		/*!
 		 * Если файл не поврежден, тогда маркером
@@ -64,16 +105,6 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 			/// 0xFF признак того, что произошло прерывание.
 			r	=	this->sleepChip( 1 );
 			CHACK_CALL_FUNC_ANSWER( r );
-
-			/// Считываем пакет "регистр + значение".
-			r	=	this->readInArray( ( uint8_t* )&packet, 2 );
-			CHACK_CALL_FUNC_ANSWER( r );
-			countRemainingBytes	-= 2;
-
-			/// Отправляем в чип пару "регистр + значение".
-			r	=	this->writePacket( packet.reg, packet.data );
-			CHACK_CALL_FUNC_ANSWER( r );
-
 			continue;
 		};
 
@@ -91,23 +122,13 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 			continue;
 		}
 
-		/// У нас считан регистр AY или левого устройства.
-		if ( buf < 16 ) {											/// Регистр для AY.
-			packet.reg		=	buf;								/// Ранее был считан регистр.
-
-			/// Считываем данные регистра.
-			r	=	this->readInArray( &packet.data, 1 );
-			CHACK_CALL_FUNC_ANSWER( r );
-			countRemainingBytes--;
-
-			/// Отправляем в чип пару "регистр + значение".
-			r	=	this->writePacket( packet.reg, packet.data );
-			CHACK_CALL_FUNC_ANSWER( r );
-		} else {													/// Пишут не в AY.
-			r	=	this->readInArray( &buf, 1 );			/// Считываем байт в пустоту.
-			CHACK_CALL_FUNC_ANSWER( r );
-			countRemainingBytes--;
+		if ( buf == 0xFD ) {										/// Флаг конца трека.
+			break;
 		}
+
+		/// Иначе это регистр.
+		packet.reg				=	buf;
+		expectedAppointment		=	true;							/// Ждем данные.
 	}
 
 	/// Отключаем чип.
@@ -124,42 +145,68 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
 	int	r;
 
-	/// Открываем файл, который планируем просканировать.
+	resultLong = 0;
+
+	/// Открываем файл, который планируем воспроизводить.
 	r	=	this->openFile();
 	CHACK_CALL_FUNC_ANSWER( r );
-
-	/// В данных переменных будет храниться
-	/// данные "регистр/данные".
-	packetPsg			packet;
 
 	/// Получаем длину файла.
 	uint32_t	fileSize;
 	r	=	this->getFileLen( fileSize );
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Данные начинаются с 16-го байта.
-	r	=	this->setOffsetByteInFile( 16 );
-	CHACK_CALL_FUNC_ANSWER( r );
-
 	/*!
 	 * Далее начинается анализ файла.
 	 */
 
-	resultLong = 0;
-
 	/// Количество оставшихся байт в файле.
 	uint32_t	countRemainingBytes;
 
-	/// Первые 16 байт - заголовок. Пропускаем.
-	countRemainingBytes = fileSize - 16;
+	/// Данные начинаются с 4-го или 16-го байта.
+	r	=	this->setOffsetByteInFile( 3 );			/// Проверим маркер (3-й байт).
+	CHACK_CALL_FUNC_ANSWER( r );
+
+	/// Првоеряем, полный заголовок или нет.
+	uint8_t		buf;
+	r	=	this->readInArray( &buf, 1 );
+
+	/// Если этот флаг, то заголовок полный
+	/// и данные начинаются с 16-го байта.
+	if ( buf == 0x1A ) {
+		/// Первые 16 байт - заголовок. Пропускаем.
+		countRemainingBytes = fileSize - 16;
+
+		r	=	this->setOffsetByteInFile( 16 );
+		CHACK_CALL_FUNC_ANSWER( r );
+	} else {
+		/// Первые 3 байта заголвок.
+		countRemainingBytes = fileSize - 3;
+	}
+
+	/*!
+	 * Что ожидается увидеть.
+	 * false		-	мы ждем регистр или маркер.
+	 * true			-	данные.
+	 */
+	bool	expectedAppointment	=	false;
 
 	/// Анализируем весь файл.
 	while( countRemainingBytes ) {
 		/// Считываем маркер.
-		uint8_t		buf;
 		r	=	this->readInArray( &buf, 1 );
 		CHACK_CALL_FUNC_ANSWER( r );
 		countRemainingBytes--;
+
+		/*!
+		 * Предыдущий байт был регистром - этот 100% данные.
+		 */
+		if ( expectedAppointment == true ) {
+			expectedAppointment = false;
+			continue;
+		}
+
+		/// Далее разбираем маркеры или регистр.
 
 		/*!
 		 * Если файл не поврежден, тогда маркером
@@ -167,18 +214,10 @@ int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
 		 */
 		if ( buf == 0xFF ) {								/// 0xFF.
 			resultLong++;
-
-			/// Считываем пакет "регистр + значение".
-			r	=	this->readInArray( ( uint8_t* )&packet, 2 );
-			CHACK_CALL_FUNC_ANSWER( r );
-			countRemainingBytes	-= 2;
-
 			continue;
 		};
 
 		if ( buf == 0xFE ) {								/// 0xFE.
-			/// За 0xFE следует байт, который при *4 даст колличество
-			/// прерываний, во время которых на AY не приходит никаких данных.
 			r	=	this->readInArray( &buf, 1 );
 			CHACK_CALL_FUNC_ANSWER( r );
 			countRemainingBytes--;
@@ -189,15 +228,13 @@ int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
 			continue;
 		}
 
-		/// У нас считан регистр AY или левого устройства.
-		r	=	this->readInArray( &buf, 1 );			/// Считываем байт в пустоту.
-		CHACK_CALL_FUNC_ANSWER( r );
-		countRemainingBytes--;
-	}
+		if ( buf == 0xFD ) {										/// Флаг конца трека.
+			break;
+		}
 
-	/// Открываем файл, который планируем воспроизводить.
-	r	=	this->closeFile();
-	CHACK_CALL_FUNC_ANSWER( r );
+		/// Иначе это регистр.
+		expectedAppointment		=	true;							/// Ждем данные.
+	}
 
 	return 0;
 }
