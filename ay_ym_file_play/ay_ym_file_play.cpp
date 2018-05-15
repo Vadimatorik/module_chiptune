@@ -87,11 +87,7 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 				packet.data	=	buf;
 				r	=	this->writePacket( packet.reg, packet.data );
 				CHACK_CALL_FUNC_ANSWER( r );
-			} else {
-				static volatile uint32_t b = 0;
-				b++;
-			}
-
+			};
 			continue;
 		}
 
