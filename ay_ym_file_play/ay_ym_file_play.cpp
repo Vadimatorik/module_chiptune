@@ -131,7 +131,7 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	r	=	this->setPwrChip( false );
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Открываем файл, который планируем воспроизводить.
+	/// Закрываем файл.
 	r	=	this->closeFile();
 	CHACK_CALL_FUNC_ANSWER( r );
 
@@ -232,7 +232,9 @@ int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
 		expectedAppointment		=	true;							/// Ждем данные.
 	}
 
-	return 0;
+	/// Не забываем закрыть файл.
+	r	=	closeFile();
+	return r;
 }
 
 #endif
