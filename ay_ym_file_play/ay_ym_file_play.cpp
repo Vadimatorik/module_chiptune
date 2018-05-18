@@ -4,26 +4,29 @@
 
 #define CHACK_CALL_FUNC_ANSWER( r )	if ( r != 0 )	return r;
 
-/// Считываемый из файла пакет.
+/// Считываемый из бинарного файла пакет.
 struct __attribute__((packed)) packetPsg {
 	uint8_t		reg;
 	uint8_t		data;
 };
 
-int AyYmFilePlayBase::psgFilePlay ( void ) {
+int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type
+										uint32_t*			resultLong	) {
 	int	r;
 
 	/// Открываем файл, который планируем воспроизводить.
 	r	=	this->openFile();
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Включаем чип.
-	r	=	this->setPwrChip( true );
-	CHACK_CALL_FUNC_ANSWER( r );
+	if ( type == PARSE_TYPE::PLAY ) {
+		/// Включаем чип.
+		r	=	this->setPwrChip( true );
+		CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Производим начальную инициализацию чипа.
-	r	=	this->initChip();
-	CHACK_CALL_FUNC_ANSWER( r );
+		/// Производим начальную инициализацию чипа.
+		r	=	this->initChip();
+		CHACK_CALL_FUNC_ANSWER( r );
+	}
 
 	/// В данных переменных будет храниться
 	/// данные "регистр/данные".
@@ -34,10 +37,11 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	r	=	this->getFileLen( fileSize );
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/*!
-	 * Далее начинается анализ файла.
-	 */
+	/// Првоеряем, что
+}
 
+
+int AyYmFilePlayBase::psgFilePlay ( void ) {
 	/// Количество оставшихся байт в файле.
 	uint32_t	countRemainingBytes;
 
