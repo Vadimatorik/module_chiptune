@@ -2,7 +2,14 @@
 
 #ifdef MODULE_AY_YM_FILE_PLAY_ENABLED
 
-#define CHACK_CALL_FUNC_ANSWER( r )	if ( r != 0 )	return r;
+/*!
+ * Макрос позволяет определить, не было ли проблем на
+ * более низком уровне (в методах, реализованных
+ * пользователем при наследовании класса0).
+ * В случае возникновения ошибки на низком уровне
+ * производится возврат кода ошибки "как есть".
+ */
+#define CHACK_CALL_FUNC_ANSWER( r )	if ( r != 0 )	return r
 
 /// Считываемый из бинарного файла пакет.
 struct __attribute__((packed)) packetPsg {
@@ -10,14 +17,29 @@ struct __attribute__((packed)) packetPsg {
 	uint8_t		data;
 };
 
-int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type
-										uint32_t*			resultLong	) {
+/// Длина полного заголовка в байтах.
+#define HANDLER_FULL_BYTE_SIZE						16
+#define HANDLER_SHORT_BYTE_SIZE						3
+#define HANDLER_MARKER_POINT_BYTE					3
+
+#define PSG_FILE_MARKER_FORMAT						0x1A
+#define PSG_FILE_MARKER_INTERRUPT					0xFF
+#define PSG_FILE_MARKER_FREE_INTERRUPT				0xFE
+#define PSG_FILE_MARKER_END_TRACK					0xFD
+
+#define MAX_REG_NUMBER								0xF
+
+int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type,
+										uint32_t*			resultLongTrack	) {
 	int	r;
 
 	/// Открываем файл, который планируем воспроизводить.
 	r	=	this->openFile();
 	CHACK_CALL_FUNC_ANSWER( r );
 
+	/// Проводим действия по инициализации
+	/// аппаратной части (или эмулятора) только
+	/// в случае, если у нас воспроизведение.
 	if ( type == PARSE_TYPE::PLAY ) {
 		/// Включаем чип.
 		r	=	this->setPwrChip( true );
@@ -26,6 +48,8 @@ int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type
 		/// Производим начальную инициализацию чипа.
 		r	=	this->initChip();
 		CHACK_CALL_FUNC_ANSWER( r );
+	} else {
+		*resultLongTrack = 0;				/// Сбрасываем счетчик прерываний.
 	}
 
 	/// В данных переменных будет храниться
@@ -37,16 +61,17 @@ int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type
 	r	=	this->getFileLen( fileSize );
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	/// Првоеряем, что
-}
+	/// Проверяем, что длина минимум 16 байт.
+	if ( fileSize < HANDLER_FULL_BYTE_SIZE ) {
+		this->closeFile();
+		return ENOEXEC;
+	}
 
-
-int AyYmFilePlayBase::psgFilePlay ( void ) {
 	/// Количество оставшихся байт в файле.
 	uint32_t	countRemainingBytes;
 
 	/// Данные начинаются с 4-го или 16-го байта.
-	r	=	this->setOffsetByteInFile( 3 );			/// Проверим маркер (3-й байт).
+	r	=	this->setOffsetByteInFile( HANDLER_MARKER_POINT_BYTE );		/// Проверим маркер (3-й байт).
 	CHACK_CALL_FUNC_ANSWER( r );
 
 	/// Првоеряем, полный заголовок или нет.
@@ -55,15 +80,14 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 
 	/// Если этот флаг, то заголовок полный
 	/// и данные начинаются с 16-го байта.
-	if ( buf == 0x1A ) {
+	if ( buf == PSG_FILE_MARKER_FORMAT ) {
 		/// Первые 16 байт - заголовок. Пропускаем.
-		countRemainingBytes = fileSize - 16;
-
-		r	=	this->setOffsetByteInFile( 16 );
+		countRemainingBytes = fileSize - HANDLER_FULL_BYTE_SIZE;
+		r	=	this->setOffsetByteInFile( HANDLER_FULL_BYTE_SIZE );
 		CHACK_CALL_FUNC_ANSWER( r );
 	} else {
 		/// Первые 3 байта заголвок.
-		countRemainingBytes = fileSize - 3;
+		countRemainingBytes = fileSize - HANDLER_SHORT_BYTE_SIZE;
 	}
 
 	/*!
@@ -73,67 +97,79 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	 */
 	bool	expectedAppointment	=	false;
 
-	/// Анализируем весь файл.
+	/// Анализируем весь файл, пока не закончатся байты или не будет встречен байт окончания.
 	while( countRemainingBytes ) {
 		/// Считываем маркер.
 		r	=	this->readInArray( &buf, 1 );
 		CHACK_CALL_FUNC_ANSWER( r );
 		countRemainingBytes--;
 
-		/*!
-		 * Предыдущий байт был регистром - этот 100% данные.
-		 */
+		/// Предыдущий байт был регистром - этот 100% данные.
 		if ( expectedAppointment == true ) {
 			expectedAppointment = false;
 
-			/// У нас считан регистр AY или левого устройства.
-			if ( packet.reg < 16 ) {											/// Регистр для AY.
-				packet.data	=	buf;
-				r	=	this->writePacket( packet.reg, packet.data );
-				CHACK_CALL_FUNC_ANSWER( r );
-			};
+			/// Если обработка файла производится с целью воспроизведения.
+			if ( type == PARSE_TYPE::PLAY ) {
+				/// У нас считан регистр AY или левого устройства.
+				if ( packet.reg <= MAX_REG_NUMBER ) {							/// Регистр для AY.
+					packet.data	=	buf;
+					r	=	this->writePacket( packet.reg, packet.data );
+					CHACK_CALL_FUNC_ANSWER( r );
+				};
+			}
 			continue;
 		}
 
-		/// Далее разбираем маркеры или регистр.
+		/// Далее разбираем маркер или регистр.
 
 		/*!
 		 * Если файл не поврежден, тогда маркером
 		 * может быть только 0xFF или 0xFE.
 		 */
-		if ( buf == 0xFF ) {								/// 0xFF.
+		if ( buf == PSG_FILE_MARKER_INTERRUPT ) {								/// 0xFF.
 			/// 0xFF признак того, что произошло прерывание.
-			r	=	this->sleepChip( 1 );
-			CHACK_CALL_FUNC_ANSWER( r );
+			if ( type == PARSE_TYPE::PLAY ) {
+				r	=	this->sleepChip( 1 );
+				CHACK_CALL_FUNC_ANSWER( r );
+			} else {
+				*resultLongTrack = *resultLongTrack + 1;
+			}
 			continue;
 		};
 
-		if ( buf == 0xFE ) {								/// 0xFE.
+		if ( buf == PSG_FILE_MARKER_FREE_INTERRUPT ) {								/// 0xFE.
 			/// За 0xFE следует байт, который при *4 даст колличество
 			/// прерываний, во время которых на AY не приходит никаких данных.
 			r	=	this->readInArray( &buf, 1 );
 			CHACK_CALL_FUNC_ANSWER( r );
 			countRemainingBytes--;
 
-			buf *= 4;
-			r	=	this->sleepChip( buf );
-			CHACK_CALL_FUNC_ANSWER( r );
+			if ( type == PARSE_TYPE::PLAY ) {
+				buf *= 4;
+				r	=	this->sleepChip( buf );
+				CHACK_CALL_FUNC_ANSWER( r );
+			} else {
+				*resultLongTrack += buf;
+			}
 
 			continue;
 		}
 
-		if ( buf == 0xFD ) {										/// Флаг конца трека.
+		if ( buf == PSG_FILE_MARKER_END_TRACK ) {				/// Флаг конца трека.
 			break;
 		}
 
 		/// Иначе это регистр.
 		packet.reg				=	buf;
-		expectedAppointment		=	true;							/// Ждем данные.
+		expectedAppointment		=	true;						/// Ждем данные.
 	}
 
-	/// Отключаем чип.
-	r	=	this->setPwrChip( false );
-	CHACK_CALL_FUNC_ANSWER( r );
+	/// После воспроизведения отключаем чип.
+	if ( type == PARSE_TYPE::PLAY ) {
+		/// Отключаем чип.
+		r	=	this->setPwrChip( false );
+		CHACK_CALL_FUNC_ANSWER( r );
+	}
 
 	/// Закрываем файл.
 	r	=	this->closeFile();
@@ -142,103 +178,13 @@ int AyYmFilePlayBase::psgFilePlay ( void ) {
 	return 0;
 }
 
+
+int AyYmFilePlayBase::psgFilePlay ( void ) {
+	return this->psgFileParse( PARSE_TYPE::PLAY, nullptr );
+}
+
 int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
-	int	r;
-
-	resultLong = 0;
-
-	/// Открываем файл, который планируем воспроизводить.
-	r	=	this->openFile();
-	CHACK_CALL_FUNC_ANSWER( r );
-
-	/// Получаем длину файла.
-	uint32_t	fileSize;
-	r	=	this->getFileLen( fileSize );
-	CHACK_CALL_FUNC_ANSWER( r );
-
-	/*!
-	 * Далее начинается анализ файла.
-	 */
-
-	/// Количество оставшихся байт в файле.
-	uint32_t	countRemainingBytes;
-
-	/// Данные начинаются с 4-го или 16-го байта.
-	r	=	this->setOffsetByteInFile( 3 );			/// Проверим маркер (3-й байт).
-	CHACK_CALL_FUNC_ANSWER( r );
-
-	/// Првоеряем, полный заголовок или нет.
-	uint8_t		buf;
-	r	=	this->readInArray( &buf, 1 );
-
-	/// Если этот флаг, то заголовок полный
-	/// и данные начинаются с 16-го байта.
-	if ( buf == 0x1A ) {
-		/// Первые 16 байт - заголовок. Пропускаем.
-		countRemainingBytes = fileSize - 16;
-
-		r	=	this->setOffsetByteInFile( 16 );
-		CHACK_CALL_FUNC_ANSWER( r );
-	} else {
-		/// Первые 3 байта заголвок.
-		countRemainingBytes = fileSize - 3;
-	}
-
-	/*!
-	 * Что ожидается увидеть.
-	 * false		-	мы ждем регистр или маркер.
-	 * true			-	данные.
-	 */
-	bool	expectedAppointment	=	false;
-
-	/// Анализируем весь файл.
-	while( countRemainingBytes ) {
-		/// Считываем маркер.
-		r	=	this->readInArray( &buf, 1 );
-		CHACK_CALL_FUNC_ANSWER( r );
-		countRemainingBytes--;
-
-		/*!
-		 * Предыдущий байт был регистром - этот 100% данные.
-		 */
-		if ( expectedAppointment == true ) {
-			expectedAppointment = false;
-			continue;
-		}
-
-		/// Далее разбираем маркеры или регистр.
-
-		/*!
-		 * Если файл не поврежден, тогда маркером
-		 * может быть только 0xFF или 0xFE.
-		 */
-		if ( buf == 0xFF ) {								/// 0xFF.
-			resultLong++;
-			continue;
-		};
-
-		if ( buf == 0xFE ) {								/// 0xFE.
-			r	=	this->readInArray( &buf, 1 );
-			CHACK_CALL_FUNC_ANSWER( r );
-			countRemainingBytes--;
-
-			buf *= 4;
-			resultLong += buf;
-
-			continue;
-		}
-
-		if ( buf == 0xFD ) {										/// Флаг конца трека.
-			break;
-		}
-
-		/// Иначе это регистр.
-		expectedAppointment		=	true;							/// Ждем данные.
-	}
-
-	/// Не забываем закрыть файл.
-	r	=	closeFile();
-	return r;
+	return this->psgFileParse( PARSE_TYPE::GET_LONG, &resultLong );
 }
 
 #endif

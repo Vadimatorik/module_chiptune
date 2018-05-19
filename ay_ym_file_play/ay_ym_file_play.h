@@ -3,33 +3,35 @@
 #ifdef MODULE_AY_YM_FILE_PLAY_ENABLED
 
 #include <stdint.h>
+#include <errno.h>
 
 /*!
- *
+ * Цель прохода по файлу.
  */
 enum class PARSE_TYPE {
-	PLAY			=	0,
-	GET_LONG		=	1
-}
+	PLAY			=	0,				/// Воспроизведение трека.
+	GET_LONG		=	1				/// Подсчет длительности.
+};
 
 class AyYmFilePlayBase {
 public:
 	/*!
 	 * Преобразует psg файл в структуры "регистр/значение".
 	 *
-	 * \return			{	0	-	успех выполнения операции.
-	 * 						-1	-	трек был остановлен.
-	 * 						>0	-	провал операции.	}
+	 * \return			{	0			-	успех выполнения операции.
+	 * 						-1			-	трек был остановлен.
+	 * 						ENOEXEC		-	размер файла меньше 16 байт.	}
 	 */
 	int		psgFilePlay					(	void	);
 
 	/*!
 	 * Получает длину psg файла в "тиках" (количестве прерываний).
 	 *
-	 * \param[out]		resultLong			-	длительность файла в "тиках"
+	 * \param[out]		resultLong		-	длительность файла в "тиках"
 	 * 											(прерываниях AY).
-	 * \return			{	0	-	успех выполнения операции.
-	 * 						>0	-	провал операции.	}
+	 * \return			{	0			-	успех выполнения операции.
+	 * 						>0			-	провал операции.
+	 * 						ENOEXEC		-	размер файла меньше 16 байт.	}
 	 */
 	int		psgFileGetLong				(	uint32_t&			resultLong	);
 
@@ -46,7 +48,7 @@ private:
 	 * В случае, если type == PLAY, то параметр
 	 * resultLong игнорируется и может быть nullptr.
 	 */
-	int		psgFileParse				(	PARSE_TYPE			type
+	int		psgFileParse				(	PARSE_TYPE			type,
 											uint32_t*			resultLong	);
 
 	/*!
