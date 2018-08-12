@@ -4,6 +4,7 @@
 
 #include "shift_register.h"
 #include "mc_hardware_interfaces_timer.h"
+#include "mc_hardware_interfaces_port_8bit.h"
 #include "mc_hardware_interfaces_pin.h"
 #include "user_os.h"
 #include "string.h"
@@ -28,7 +29,7 @@ struct ayYmConnectionChipCfg {
 struct ayYmLowLavelCfg {
 
 	USER_OS_STATIC_MUTEX*			const mutex;			/// Мутекс заберается на время передачи данных в AY/YM.
-	ShiftRegisterPort8bit*			const ports;			/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
+	Port8bitBase*					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
 
 	USER_OS_STATIC_BIN_SEMAPHORE*	const semaphoreSecOut;	// Этим симафором будем показывать, что прошла секунда воспроизведения. Опционально (можно nullptr).
 
