@@ -20,7 +20,7 @@ void AyYmLowLavel::setReg ( void ) {
 	if ( this->cfg->mutex != nullptr)
 		USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
 
-	this->cfg->sr->write();
+	this->cfg->sr->update();
 	this->cfg->bc1->set();
 	this->cfg->bdir->set();
 	this->cfg->bdir->reset();
@@ -40,7 +40,7 @@ void AyYmLowLavel::setData ( void ) {
 	if ( this->cfg->mutex != nullptr)
 		USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
 
-	this->cfg->sr->write();
+	this->cfg->sr->update();
 	this->cfg->bdir->set();
 	this->cfg->bdir->reset();
 
