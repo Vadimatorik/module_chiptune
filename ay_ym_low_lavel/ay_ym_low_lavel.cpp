@@ -4,48 +4,19 @@
 
 AyYmLowLavel::AyYmLowLavel ( const ayYmLowLavelCfg* const cfg ) : cfg( cfg ) {
 	this->s = USER_OS_STATIC_BIN_SEMAPHORE_CREATE( &this->sb );
-}
-
-void AyYmLowLavel::init ( void ) {
 	USER_OS_STATIC_TASK_CREATE( this->task, "ayLow", AY_YM_LOW_LAVEL_TASK_STACK_SIZE, ( void* )this, this->cfg->taskPrio, this->tb, &this->ts );
 }
 
-// Выбираем нужные регистры в AY/YM.
-/*
- * По сути, мы просто выдаем в расширитель портов то, что лежит в буффере по адресу p_sr_data.
- * Предполагается, что туда уже положили значения регистров для каждого AY/YM.
- * BDIR и BC1 дергаются так, чтобы произошел выбор регистра.
- */
 void AyYmLowLavel::setReg ( void ) {
-	if ( this->cfg->mutex != nullptr)
-		USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
-
-	this->cfg->sr->update();
 	this->cfg->bc1->set();
 	this->cfg->bdir->set();
 	this->cfg->bdir->reset();
 	this->cfg->bc1->reset();
-
-	if ( this->cfg->mutex != nullptr)
-		USER_OS_GIVE_MUTEX( *this->cfg->mutex );
 }
 
-//**********************************************************************
-// Загружаем в заранее выбранный регистр значение.
-// Предполагается, что в буффер по адресу p_sr_data
-// уже были загружены нужные значения.
-//**********************************************************************
-
 void AyYmLowLavel::setData ( void ) {
-	if ( this->cfg->mutex != nullptr)
-		USER_OS_TAKE_MUTEX( *this->cfg->mutex, portMAX_DELAY );
-
-	this->cfg->sr->update();
 	this->cfg->bdir->set();
 	this->cfg->bdir->reset();
-
-	if ( this->cfg->mutex != nullptr)
-		USER_OS_GIVE_MUTEX( *this->cfg->mutex );
 }
 
 void AyYmLowLavel::queueClear ( void ) {
@@ -60,7 +31,6 @@ void AyYmLowLavel::queueClear ( void ) {
 // ( по умолчанию, значение может меняться ).
 //**********************************************************************
 void AyYmLowLavel::timerInterruptHandler ( void ) {
-	this->cfg->timInterruptTask->clearInterruptFlag();
 	static USER_OS_PRIO_TASK_WOKEN	 prio;
 	USER_OS_GIVE_BIN_SEMAPHORE_FROM_ISR( this->s, &prio );	// Отдаем симафор и выходим (этим мы разблокируем поток, который выдает в чипы данные).
 }
@@ -141,11 +111,11 @@ bool AyYmLowLavel::chackFlagWait ( bool* flag_array ) {
 void AyYmLowLavel::sendBuffer ( void ) {
 	for ( uint32_t reg_loop = 0; reg_loop < 16; reg_loop++ ) {
 		for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ayNumber; loop_ay++ )
-			this->cfg->srData[ loop_ay ] = this->connectionTransformation( loop_ay, reg_loop );
+			this->cfg->ports[ loop_ay ].write( this->connectionTransformation( loop_ay, reg_loop ) );
 		this->setReg();
 
 		for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ayNumber; loop_ay++ )
-			this->cfg->srData[ loop_ay ] = this->connectionTransformation( loop_ay, this->buf_data_chip[ loop_ay ].reg[ reg_loop ] );
+			this->cfg->ports[ loop_ay ].write( this->connectionTransformation( loop_ay, this->buf_data_chip[ loop_ay ].reg[ reg_loop ] ) );
 		this->setData();
 	}
 }
@@ -192,11 +162,11 @@ void AyYmLowLavel::task ( void* p_this ) {
 			// Собранный пакет раскладываем на регистры и на их значения и отправляем.
 			//**********************************************************************
 			for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ayNumber; chip_loop++ )
-				obj->cfg->srData[chip_loop] = obj->connectionTransformation( chip_loop, buffer[chip_loop].reg );
+				obj->cfg->ports[ chip_loop ].write( obj->connectionTransformation( chip_loop, buffer[chip_loop].reg ) );
 
 			obj->setReg();
 			for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ayNumber; chip_loop++ )
-				obj->cfg->srData[chip_loop] = obj->connectionTransformation( chip_loop, buffer[chip_loop].data );
+				obj->cfg->ports[ chip_loop ].write( obj->connectionTransformation( chip_loop, buffer[chip_loop].data ) );
 
 			obj->setData();
 		}
@@ -213,18 +183,11 @@ void AyYmLowLavel::task ( void* p_this ) {
 
 // Останавливаем/продолжаем с того же места воспроизведение. Синхронно для всех AY/YM.
 void AyYmLowLavel::playStateSet ( uint8_t state ) {
-	this->cfg->pwrSet( state );
+	this->cfg->funcFrequencyAyControl( state );
+	this->cfg->funcTimInterruptTask( state );
 
-	USER_OS_DELAY_MS( 10 );											/// Ждем стабилизации питания.
-
-	if ( state == 1 ) {
-		this->cfg->timFrequencyAy->on();
-		this->cfg->timInterruptTask->on();
-		this->sendBuffer();											// Восстанавливаем контекст.
-	} else {
-		this->cfg->timInterruptTask->off();
-		this->cfg->timFrequencyAy->off();
-	};
+	if ( state )
+		this->sendBuffer();
 }
 
 #endif

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "project_config.h"
+
 #ifdef MODULE_AY_YM_FILE_PLAY_ENABLED
 
 #include <stdint.h>

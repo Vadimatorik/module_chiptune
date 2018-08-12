@@ -1,5 +1,7 @@
 #pragma once
 
+#include "project_config.h"
+
 #ifdef MODULE_AY_YM_LOW_LAVEL_ENABLED
 
 #include "shift_register.h"
@@ -78,8 +80,6 @@ struct __attribute__( ( packed ) ) ayChipReg {
 class AyYmLowLavel {
 public:
 	AyYmLowLavel ( const ayYmLowLavelCfg* const cfg );
-
-	void	init							( void );
 
 	// Добавляет элемент в очередь. Элемент будет выдан в АУ во время прерывания.
 	int		queueAddElement					( ayQueueStruct* data );
