@@ -5,7 +5,6 @@
 #ifdef MODULE_AY_YM_LOW_LAVEL_ENABLED
 
 #include "shift_register.h"
-#include "mc_hardware_interfaces_timer.h"
 #include "mc_hardware_interfaces_port_8bit.h"
 #include "mc_hardware_interfaces_pin.h"
 #include "user_os.h"
