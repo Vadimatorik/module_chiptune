@@ -29,15 +29,15 @@ struct ayYmConnectionChipCfg {
  */
 struct ayYmLowLavelCfg {
 
-	USER_OS_STATIC_MUTEX*			const mutex;			/// Мутекс заберается на время передачи данных в AY/YM.
-	Port8bitBase*					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
+	USER_OS_STATIC_MUTEX*								const mutex;			/// Мутекс заберается на время передачи данных в AY/YM.
+	McHardwareInterfaces::Port8bit*					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
 
-	USER_OS_STATIC_BIN_SEMAPHORE*	const semaphoreSecOut;	// Этим симафором будем показывать, что прошла секунда воспроизведения. Опционально (можно nullptr).
+	USER_OS_STATIC_BIN_SEMAPHORE*						const semaphoreSecOut;	// Этим симафором будем показывать, что прошла секунда воспроизведения. Опционально (можно nullptr).
 
 	// Выводы управления AY должны быть указаны обязательно (включение всех AY - параллельное).
 	// Выводы должны быть указано явно.
-	PinBase*						const bdir;				// Выводы управления AY чипами (чипы включать в параллель).
-	PinBase*						const bc1;
+	McHardwareInterfaces::Pin*						const bdir;				// Выводы управления AY чипами (чипы включать в параллель).
+	McHardwareInterfaces::Pin*						const bc1;
 
 	//
 	// Для каждого AY своя очередь.
