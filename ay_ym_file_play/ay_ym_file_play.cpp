@@ -175,7 +175,7 @@ int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type,
 	r	=	this->closeFile();
 	CHACK_CALL_FUNC_ANSWER( r );
 
-	return 0;
+	return EOK;
 }
 
 
