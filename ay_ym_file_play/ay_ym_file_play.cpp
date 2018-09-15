@@ -34,7 +34,7 @@ int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type,
 	int	r;
 
 	/// Открываем файл, который планируем воспроизводить.
-	r	=	this->openFile();
+	r	=	this->openFile( this->pathToFile );
 	CHACK_CALL_FUNC_ANSWER( r );
 
 	/// Проводим действия по инициализации
@@ -179,11 +179,16 @@ int AyYmFilePlayBase::psgFileParse (	PARSE_TYPE			type,
 }
 
 
-int AyYmFilePlayBase::psgFilePlay ( void ) {
+int AyYmFilePlayBase::psgFilePlay ( std::shared_ptr< char >		fullFilePath ) {
+	this->pathToFile	=	fullFilePath;
+
 	return this->psgFileParse( PARSE_TYPE::PLAY, nullptr );
 }
 
-int AyYmFilePlayBase::psgFileGetLong ( uint32_t& resultLong ) {
+int AyYmFilePlayBase::psgFileGetLong ( std::shared_ptr< char >		fullFilePath,
+										uint32_t& resultLong ) {
+	this->pathToFile	=	fullFilePath;
+
 	return this->psgFileParse( PARSE_TYPE::GET_LONG, &resultLong );
 }
 

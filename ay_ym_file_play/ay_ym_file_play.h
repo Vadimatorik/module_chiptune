@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <errno.h>
+#include <memory>
 
 /*!
  * Цель прохода по файлу.
@@ -24,7 +25,7 @@ public:
 	 * 						-1			-	трек был остановлен.
 	 * 						ENOEXEC		-	размер файла меньше 16 байт.	}
 	 */
-	int		psgFilePlay					(	void	);
+	int		psgFilePlay					(	std::shared_ptr< char >		fullFilePath	);
 
 	/*!
 	 * Получает длину psg файла в "тиках" (количестве прерываний).
@@ -35,7 +36,8 @@ public:
 	 * 						>0			-	провал операции.
 	 * 						ENOEXEC		-	размер файла меньше 16 байт.	}
 	 */
-	int		psgFileGetLong				(	uint32_t&			resultLong	);
+	int		psgFileGetLong				(	std::shared_ptr< char >		fullFilePath,
+											uint32_t&					resultLong	);
 
 private:
 	/*!
@@ -73,7 +75,7 @@ private:
 	 * \return			{	0	-	успех выполнения операции.
 	 * 						>0	-	провал операции.	}
 	 */
-	virtual int	openFile						(	void	)								= 0;
+	virtual int	openFile						(	std::shared_ptr< char >		fullFilePath	)		= 0;
 
 	/*!
 	 * Закрывает файл.
@@ -164,6 +166,10 @@ private:
 	 */
 	virtual int	writePacket					(	const uint8_t	reg,
 												const uint8_t	data	)					= 0;
+
+private:
+	std::shared_ptr< char >			pathToFile;
+
 };
 
 #endif
