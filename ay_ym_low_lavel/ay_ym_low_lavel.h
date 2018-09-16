@@ -30,7 +30,7 @@ struct ayYmConnectionChipCfg {
 struct ayYmLowLavelCfg {
 
 	USER_OS_STATIC_MUTEX*								const mutex;			/// Мутекс заберается на время передачи данных в AY/YM.
-	McHardwareInterfaces::Port8bit*					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
+	McHardwareInterfaces::Port8bit**					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
 
 	USER_OS_STATIC_BIN_SEMAPHORE*						const semaphoreSecOut;	// Этим симафором будем показывать, что прошла секунда воспроизведения. Опционально (можно nullptr).
 
@@ -72,7 +72,7 @@ struct __attribute__( ( packed ) ) ayChipReg {
 	uint8_t reg[16];
 };
 
-#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE			 1000
+#define AY_YM_LOW_LAVEL_TASK_STACK_SIZE			 2000
 
 // Очередь должна быть как минимум 1 элемент (в идеале - по 16*2 b и более для каждого чипа).
 // Очердь общая для все чипов!

@@ -111,11 +111,11 @@ bool AyYmLowLavel::chackFlagWait ( bool* flag_array ) {
 void AyYmLowLavel::sendBuffer ( void ) {
 	for ( uint32_t reg_loop = 0; reg_loop < 16; reg_loop++ ) {
 		for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ayNumber; loop_ay++ )
-			this->cfg->ports[ loop_ay ].write( this->connectionTransformation( loop_ay, reg_loop ) );
+			this->cfg->ports[ loop_ay ]->write( this->connectionTransformation( loop_ay, reg_loop ) );
 		this->setReg();
 
 		for ( uint32_t loop_ay = 0; loop_ay < this->cfg->ayNumber; loop_ay++ )
-			this->cfg->ports[ loop_ay ].write( this->connectionTransformation( loop_ay, this->buf_data_chip[ loop_ay ].reg[ reg_loop ] ) );
+			this->cfg->ports[ loop_ay ]->write( this->connectionTransformation( loop_ay, this->buf_data_chip[ loop_ay ].reg[ reg_loop ] ) );
 		this->setData();
 	}
 }
@@ -162,11 +162,11 @@ void AyYmLowLavel::task ( void* p_this ) {
 			// Собранный пакет раскладываем на регистры и на их значения и отправляем.
 			//**********************************************************************
 			for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ayNumber; chip_loop++ )
-				obj->cfg->ports[ chip_loop ].write( obj->connectionTransformation( chip_loop, buffer[chip_loop].reg ) );
+				obj->cfg->ports[ chip_loop ]->write( obj->connectionTransformation( chip_loop, buffer[chip_loop].reg ) );
 
 			obj->setReg();
 			for ( uint32_t chip_loop = 0; chip_loop <  obj->cfg->ayNumber; chip_loop++ )
-				obj->cfg->ports[ chip_loop ].write( obj->connectionTransformation( chip_loop, buffer[chip_loop].data ) );
+				obj->cfg->ports[ chip_loop ]->write( obj->connectionTransformation( chip_loop, buffer[chip_loop].data ) );
 
 			obj->setData();
 		}
