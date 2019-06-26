@@ -1,0 +1,3 @@
+[submodule "submodules/zxtune"]
+	path = submodules/zxtune
+	url = git@github.com:Vadimatorik/zxtune.git
