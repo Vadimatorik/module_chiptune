@@ -70,22 +70,27 @@ include_directories(
         ${USER_OS_H_PATH} # Путь до файла user_os с прослойками под конкретную операционную систему.
         ${USER_OS_PATH} # Путь к заголовочным файлам операционной системы.
         ${SHIFT_REGISTER_BASE_PATH}
-        ${CMAKE_CURRENT_SOURCE_DIR}/ay_ym_file_play/inc
-        ${CMAKE_CURRENT_SOURCE_DIR}/ay_ym_low_lavel/inc
-        ${CMAKE_CURRENT_SOURCE_DIR}/ay_ym_note_mode/inc
-
+        aym/file_play/inc
+        aym/file_play/readers/inc
+        aym/file_play/mc_file_container/inc
+        aym/low_lavel/inc
+        aym/note_mode/inc
         ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/
+        ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/binary
+        ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats
+        ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune
         ${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune/aym
 )
 
 # Компиляции полежат все <<.cpp>> файлы из директории src.
 file(GLOB ${PROJECT_NAME}_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/*/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/aym/*/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/aym/*/*/src/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune/aym/psg.cpp")
 
 # Собираем библиотеку из .obj файлов, полученных из файлов, добавленных выше.
-add_library(${PROJECT_NAME} STATIC ${${PROJECT_NAME}_SOURCES})
+add_library(${PROJECT_NAME} STATIC ${${PROJECT_NAME}_SOURCES} ${${PROJECT_NAME}_HEADER})
 
 # Компиляция файлов происходит по флагам из корневого CMakeList.
 target_compile_options(${PROJECT_NAME} PRIVATE
