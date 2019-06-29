@@ -70,6 +70,7 @@ include_directories(
         ${USER_OS_H_PATH} # Путь до файла user_os с прослойками под конкретную операционную систему.
         ${USER_OS_PATH} # Путь к заголовочным файлам операционной системы.
         ${SHIFT_REGISTER_BASE_PATH}
+        ${MODULE_FATFS_H_PATH}
         aym/file_play/inc
         aym/file_play/readers/inc
         aym/file_play/mc_file_container/inc
