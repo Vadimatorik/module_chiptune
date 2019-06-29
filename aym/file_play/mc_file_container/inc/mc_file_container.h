@@ -1,6 +1,6 @@
 #include "container.h"
 
-#include "fat.h"
+#include "fatfs.h"
 
 class mc_file_container : public Binary::Container {
 public:
@@ -9,6 +9,6 @@ public:
     std::size_t Size() const;
 
 private:
-    fat f;
+    fatfs f;
 
 };
