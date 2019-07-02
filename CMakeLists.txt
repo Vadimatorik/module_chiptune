@@ -89,7 +89,8 @@ include_directories(
 file(GLOB ${PROJECT_NAME}_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/aym/*/src/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/aym/*/*/src/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune/aym/psg.cpp")
+        "${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune/aym/psg.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/submodules/zxtune/src/formats/chiptune/aym/protracker3_compiled.cpp")
 
 # Собираем библиотеку из .obj файлов, полученных из файлов, добавленных выше.
 add_library(${PROJECT_NAME} STATIC ${${PROJECT_NAME}_SOURCES} ${${PROJECT_NAME}_HEADER})

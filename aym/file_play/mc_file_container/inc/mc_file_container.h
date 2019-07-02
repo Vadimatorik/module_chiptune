@@ -4,11 +4,40 @@
 
 class mc_file_container : public Binary::Container {
 public:
-    Ptr GetSubcontainer(std::size_t offset, std::size_t size) const;
-    const void* Start() const;
-    std::size_t Size() const;
+    constexpr mc_file_container () {
+    }
+
+    int open_file (std::shared_ptr<char> p);
+    int close_file (void);
+
+public:
+    Ptr GetSubcontainer (std::size_t offset, std::size_t size) const;
+    const void *Start () const;
+    std::size_t Size () const;
 
 private:
-    fatfs f;
+    void resetFlags ( void );
+
+private:
+    static const uint32_t BUFFER_SIZE_BYTE = 1024 * 10;
+
+    /// Т.к. методы зачастую читают по 1 байту, то чтобы ускорить этот процесс
+    /// сразу копируется значительный кусок трека.
+    __attribute__((__aligned__(4)))
+    uint8_t f_buf[BUFFER_SIZE_BYTE] = {0};
+
+    /// Смещение, с которого было скопирован кусок.
+    uint32_t pointStartSeekBuffer = 0;
+
+    /// Смещение, с которого будет считан следующий байт/последовательность
+    /// байт (относительно буффера).
+    uint32_t pointInBuffer = 0;
+
+private:
+    bool flagStop = false;
+
+private:
+    std::shared_ptr<FIL> f = nullptr;
+    fatfs fat;
 
 };
