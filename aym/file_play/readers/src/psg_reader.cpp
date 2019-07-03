@@ -1,9 +1,12 @@
 #include "psg_reader.h"
 
-void psg_reader::AddChunks (std::size_t count) {
-    this->sleep(count);
+int psg_reader::parse_psg (mc_file_container &c) {
+    (void)c;
+    return 0;
 }
 
-void psg_reader::SetRegister (uint_t reg, uint_t val) {
-    this->set_reg(reg, val);
+int psg_reader::get_len_psg (mc_file_container &c, uint32_t &len) {
+    (void)c;
+    (void)len;
+    return 0;
 }

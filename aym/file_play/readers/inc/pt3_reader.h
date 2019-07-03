@@ -1,12 +1,12 @@
 #include "mc_file_container.h"
 
-class psg_reader {
+class pt3_reader  {
 public:
-    constexpr psg_reader () {};
+    constexpr pt3_reader () {};
 
 public:
-    int parse_psg (mc_file_container &c);
-    int get_len_psg (mc_file_container &c, uint32_t &len);
+    int parse_pt3 (mc_file_container &c);
+    int get_len_pt3 (mc_file_container &c, uint32_t &len);
 
 private:
     virtual int sleep (uint32_t num) = 0;

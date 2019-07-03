@@ -11,20 +11,15 @@
 
 #include "mc_file_container.h"
 #include "psg_reader.h"
+#include "pt3_reader.h"
 
-class aym_base_parse : private psg_reader {
+class aym_base_parse : public psg_reader, pt3_reader {
 public:
     constexpr aym_base_parse() {}
 
 public:
     int parse (std::shared_ptr<char> f);
     int get_len (std::shared_ptr<char> f, uint32_t &len);
-
-private:
-    int parse_psg (std::shared_ptr<char> f);
-    int get_len_psg (std::shared_ptr<char> f, uint32_t &len);
-    int parse_pt3 (std::shared_ptr<char> f);
-    int get_len_pt3 (std::shared_ptr<char> f, uint32_t &len);
 
 private:
     virtual int set_pwr_chip (const bool state) = 0;

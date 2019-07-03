@@ -1,10 +1,6 @@
 #include "mc_file_container.h"
 #include <memory>
 
-void do_nothing_deleter (int *) {
-    return;
-}
-
 void mc_file_container::resetFlags (void) {
     this->flagStop = false;
 
@@ -58,18 +54,3 @@ int mc_file_container::open_file (std::shared_ptr<char> p) {
 int mc_file_container::close_file (void) {
     return this->fat.closeFile(this->f);
 }
-
-Binary::Container::Ptr mc_file_container::GetSubcontainer (std::size_t offset, std::size_t size) const {
-    (void)offset;
-    (void)size;
-    return Ptr(this, [] (const Container *) {});
-}
-
-const void *mc_file_container::Start () const {
-    return this->f_buf;
-}
-
-std::size_t mc_file_container::Size () const {
-    return this->fat.getFileSize(this->f);
-}
-

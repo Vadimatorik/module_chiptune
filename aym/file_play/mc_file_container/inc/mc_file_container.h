@@ -1,25 +1,17 @@
-#include "container.h"
+#pragma once
 
 #include "fatfs.h"
 
-class mc_file_container : public Binary::Container {
+class mc_file_container {
 public:
-    constexpr mc_file_container () {
-    }
-
     int open_file (std::shared_ptr<char> p);
     int close_file (void);
-
-public:
-    Ptr GetSubcontainer (std::size_t offset, std::size_t size) const;
-    const void *Start () const;
-    std::size_t Size () const;
 
 private:
     void resetFlags ( void );
 
 private:
-    static const uint32_t BUFFER_SIZE_BYTE = 1024 * 10;
+    static const uint32_t BUFFER_SIZE_BYTE = 1024 * 3;
 
     /// Т.к. методы зачастую читают по 1 байту, то чтобы ускорить этот процесс
     /// сразу копируется значительный кусок трека.
