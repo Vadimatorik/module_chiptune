@@ -3,8 +3,26 @@
 #ifdef MODULE_AY_YM_FILE_PLAY_ENABLED
 
 int aym_base_parse::parse (std::shared_ptr<char> f) {
-    (void)f;
-    return EINVAL;
+    int rv = 0;
+
+    if ((rv = this->c.open_file(f)) != 0) {
+        return rv;
+    }
+
+    this->set_pwr_chip(true);
+    this->init_chip();
+
+    if ((rv = this->play_psg(this->c)) != 0) {
+        return rv;
+    }
+
+    this->set_pwr_chip(false);
+
+    if ((rv = this->c.close_file()) != 0) {
+        return rv;
+    }
+
+    return rv;
 }
 
 int aym_base_parse::get_len (std::shared_ptr<char> f, uint32_t &len) {

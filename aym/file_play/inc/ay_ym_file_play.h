@@ -24,8 +24,6 @@ public:
 private:
     virtual int set_pwr_chip (const bool state) = 0;
     virtual int init_chip (void) = 0;
-    virtual int sleep (const uint32_t num) = 0;
-    virtual int set_reg (const uint8_t reg, const uint8_t data) = 0;
 
 private:
     mc_file_container c;
