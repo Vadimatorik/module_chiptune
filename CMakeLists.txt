@@ -63,6 +63,12 @@ if (NOT DEFINED SHIFT_REGISTER_BASE_PATH)
             "The value of the variable <<SHIFT_REGISTER_BASE_PATH>> is not specified!")
 endif ()
 
+if (NOT DEFINED RUN_TIME_LOGGER_H_PATH)
+    message(FATAL_ERROR
+            "The value of the variable <<RUN_TIME_LOGGER_H_PATH>> is not specified!")
+endif ()
+
+
 # Для сборки требуется:
 include_directories(
         ${${PROJECT_NAME}_CFG_H_PATH} # Путь до файла с разрешающим компиляцию данного файла объявлением.
@@ -72,6 +78,7 @@ include_directories(
         ${SHIFT_REGISTER_BASE_PATH}
         ${MODULE_FATFS_H_PATH}
         ${MODULE_FAT_CONTROLLER_H_PATH}
+        ${RUN_TIME_LOGGER_H_PATH}
         aym/file_play/inc
         aym/file_play/readers/inc
         aym/file_play/mc_file_container/inc
