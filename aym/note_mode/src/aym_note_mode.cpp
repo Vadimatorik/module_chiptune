@@ -1,4 +1,4 @@
-#include "ay_ym_note_mode.h"
+#include "aym_note_mode.h"
 
 #ifdef MODULE_AY_YM_NOTE_MODE_ENABLED
 
@@ -7,7 +7,7 @@
 /*
 // Включить/выключить 1 канал одного из чипов. Через очередь.
 
-void ay_ym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set ) {
+void aym_low_lavel::set_channel ( uint8_t number_ay, uint8_t channel, bool set ) {
     if ( set ) {                                                                // Если включить канал.
         this->cfg->r7_reg[number_ay] &= ~( 1 << channel);
     } else {

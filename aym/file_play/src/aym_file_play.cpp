@@ -1,4 +1,4 @@
-#include "ay_ym_file_play.h"
+#include "aym_file_play.h"
 
 #ifdef MODULE_AY_YM_FILE_PLAY_ENABLED
 
