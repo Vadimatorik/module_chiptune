@@ -4,9 +4,9 @@
 
 #ifdef MODULE_AY_YM_LOW_LAVEL_ENABLED
 
-#include "shift_register.h"
-#include "mc_hardware_interfaces_port_8bit.h"
-#include "mc_hardware_interfaces_pin.h"
+#include "shift_register_8bit_port.h"
+#include "mc_port_8bit.h"
+#include "pin.h"
 #include "user_os.h"
 #include "string.h"
 
@@ -30,14 +30,14 @@ struct ayYmConnectionChipCfg {
 struct ayYmLowLavelCfg {
 
 	USER_OS_STATIC_MUTEX*								const mutex;			/// Мутекс заберается на время передачи данных в AY/YM.
-	McHardwareInterfaces::Port8bit**					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
+	mc_interfaces::Port8bit**					ports;					/// Порты, к которым подключены AY. Минимум 1 должен быть указан.
 
 	USER_OS_STATIC_BIN_SEMAPHORE*						const semaphoreSecOut;	// Этим симафором будем показывать, что прошла секунда воспроизведения. Опционально (можно nullptr).
 
 	// Выводы управления AY должны быть указаны обязательно (включение всех AY - параллельное).
 	// Выводы должны быть указано явно.
-	McHardwareInterfaces::Pin*						const bdir;				// Выводы управления AY чипами (чипы включать в параллель).
-	McHardwareInterfaces::Pin*						const bc1;
+	mc_interfaces::Pin*						const bdir;				// Выводы управления AY чипами (чипы включать в параллель).
+	mc_interfaces::Pin*						const bc1;
 
 	//
 	// Для каждого AY своя очередь.
